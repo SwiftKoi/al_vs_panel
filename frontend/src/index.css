@@ -1,0 +1,237 @@
+@import "tailwindcss";
+
+@theme {
+  --font-sans: "Outfit", ui-sans-serif, system-ui, -apple-system, sans-serif;
+  --font-serif: "Cinzel", Georgia, serif;
+
+  /* Remapping slate to Alegacy Dark/Surface tones */
+  --color-slate-950: #0a0a0c;
+  --color-slate-900: #141416;
+  --color-slate-800: #18181c;
+  --color-slate-700: #222228;
+  --color-slate-600: #2a2a32;
+  --color-slate-500: #42424d;
+  --color-slate-400: rgba(255, 255, 255, 0.5);
+  --color-slate-300: rgba(255, 255, 255, 0.7);
+  --color-slate-200: rgba(255, 255, 255, 0.85);
+  --color-slate-100: #ffffff;
+
+  /* Remapping primary accents (blue/sky) to Crimson Red */
+  --color-blue-500: #b8282e;
+  --color-blue-400: #e04444;
+  --color-blue-300: #f87171;
+  
+  --color-sky-500: #b8282e;
+  --color-sky-400: #e04444;
+  --color-sky-300: #f87171;
+
+  /* Remapping status colors to Ember Orange/Yellow */
+  --color-emerald-500: #e07a3a;
+  --color-emerald-400: #ffd8a0;
+
+  /* Custom Redesign Colors */
+  --color-al-bg: #0a0a0c;
+  --color-al-surface: #141416;
+  --color-al-accent: #b8282e;
+  --color-al-accent-light: #e04444;
+  --color-al-border: rgba(184, 40, 46, 0.15);
+
+  /* Animations */
+  --animate-rune-spin: alRuneSpin 4s linear infinite;
+  --animate-rune-float: alRuneFloat 3s ease-in-out infinite;
+  --animate-ember-glow: alEmberGlow 2.4s ease-in-out infinite;
+  --animate-logo-float: alLogoFloat 6s ease-in-out infinite;
+  --animate-ember-float: emberFloat 15s linear infinite;
+}
+
+@keyframes emberFloat {
+  0% {
+    transform: translateY(0) translateX(0) scale(1);
+    opacity: 0;
+  }
+  10% {
+    opacity: 0.55;
+  }
+  90% {
+    opacity: 0.25;
+  }
+  100% {
+    transform: translateY(-105vh) translateX(30px) scale(0.4);
+    opacity: 0;
+  }
+}
+
+@keyframes alRuneSpin {
+  from { transform: rotate(0deg); }
+  to { transform: rotate(360deg); }
+}
+
+@keyframes alRuneFloat {
+  0%, 100% { transform: translateY(0); }
+  50% { transform: translateY(-6px); }
+}
+
+@keyframes alEmberGlow {
+  0%, 100% {
+    opacity: 1;
+    filter: drop-shadow(0 0 6px rgba(224, 122, 58, 0.8)) drop-shadow(0 0 12px rgba(184, 40, 46, 0.45));
+  }
+  50% {
+    opacity: 0.55;
+    filter: drop-shadow(0 0 3px rgba(224, 122, 58, 0.45)) drop-shadow(0 0 6px rgba(184, 40, 46, 0.25));
+  }
+}
+
+@keyframes alLogoFloat {
+  0%, 100% { transform: translateY(0); }
+  50% { transform: translateY(-8px); }
+}
+
+@keyframes btnSweep {
+  0% { left: -80%; }
+  100% { left: 130%; }
+}
+
+:root {
+  font-family: var(--font-sans);
+  color: var(--color-slate-200);
+  background: var(--color-al-bg);
+  font-synthesis: none;
+  text-rendering: optimizeLegibility;
+  -webkit-font-smoothing: antialiased;
+}
+
+h1, h2, h3, h4, h5, h6, .serif-font {
+  font-family: var(--font-serif);
+}
+
+html, body {
+  margin: 0;
+  padding: 0;
+  min-width: 320px;
+  min-height: 100vh;
+  max-width: 100vw;
+  overflow-x: hidden;
+}
+
+/* Atmospheric elements */
+body {
+  position: relative;
+  background-image: radial-gradient(circle at 50% 30%, #1c0a0a 0%, #0a0a0c 70%, #050506 100%);
+}
+
+body::before {
+  content: '';
+  position: fixed;
+  inset: 0;
+  z-index: -10;
+  pointer-events: none;
+  background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 200 200' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='noise'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.85' numOctaves='3' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23noise)'/%3E%3C/svg%3E");
+  opacity: 0.035;
+  mix-blend-mode: overlay;
+}
+
+button, input, select, textarea { font: inherit; }
+
+/* Custom scrollbars */
+* {
+  scrollbar-width: thin;
+  scrollbar-color: #222228 #060608;
+}
+
+*::-webkit-scrollbar {
+  width: 8px;
+  height: 8px;
+}
+
+*::-webkit-scrollbar-track {
+  background: #060608;
+}
+
+*::-webkit-scrollbar-thumb {
+  background: #1a1a20;
+  border-radius: 4px;
+  border: 1px solid rgba(184, 40, 46, 0.15);
+}
+
+*::-webkit-scrollbar-thumb:hover {
+  background: #b8282e;
+  box-shadow: 0 0 8px rgba(184, 40, 46, 0.6);
+}
+
+*::-webkit-scrollbar-corner {
+  background: #060608;
+}
+
+/* Redesign classes */
+.glass-panel {
+  background: rgba(16, 16, 19, 0.85) !important;
+  backdrop-filter: blur(14px) saturate(1.2);
+  -webkit-backdrop-filter: blur(14px) saturate(1.2);
+  border: 1px solid rgba(184, 40, 46, 0.15) !important;
+  box-shadow: 0 8px 32px 0 rgba(0, 0, 0, 0.5), inset 0 0 10px rgba(184, 40, 46, 0.05);
+  transition: border-color 0.25s ease, box-shadow 0.25s ease;
+}
+
+.glass-panel:hover {
+  border-color: rgba(224, 68, 68, 0.35) !important;
+  box-shadow: 0 12px 40px 0 rgba(0, 0, 0, 0.65), 0 0 15px rgba(184, 40, 46, 0.1), inset 0 0 15px rgba(184, 40, 46, 0.08);
+}
+
+.glow-text {
+  text-shadow: 0 0 12px rgba(224, 68, 68, 0.6);
+}
+
+.btn-sweep {
+  position: relative;
+  overflow: hidden;
+}
+
+.btn-sweep::after {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: -80%;
+  width: 45%;
+  height: 100%;
+  background: linear-gradient(90deg, transparent, rgba(255, 255, 255, 0.25), transparent);
+  transform: skewX(-20deg);
+  transition: none;
+}
+
+.btn-sweep:hover::after {
+  animation: btnSweep 0.55s ease forwards;
+}
+
+.ember-dot::before {
+  content: '';
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  flex-shrink: 0;
+  background: radial-gradient(circle at 35% 35%, #ffd8a0 0%, #e07a3a 45%, #b8282e 100%);
+  animation: alEmberGlow 2.4s ease-in-out infinite;
+  display: inline-block;
+  vertical-align: middle;
+}
+
+/* Mobile touch interactions in the file manager */
+.touch-no-callout {
+  -webkit-touch-callout: none;
+  -webkit-user-select: none;
+  touch-action: manipulation;
+}
+
+/* Bottom sheet slide-up */
+.bottom-sheet-in {
+  animation: bottomSheetIn 0.28s ease-out;
+}
+
+@keyframes bottomSheetIn {
+  from {
+    transform: translateY(100%);
+  }
+  to {
+    transform: translateY(0);
+  }
+}

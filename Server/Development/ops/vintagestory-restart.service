@@ -1,0 +1,12 @@
+[Unit]
+Description=Announce and restart the Vintage Story server at midnight
+Requires=docker.service
+After=docker.service
+
+[Service]
+Type=oneshot
+User=flajakay
+Group=flajakay
+WorkingDirectory=/home/flajakay/vsds
+ExecStart=/home/flajakay/vsds/ops/scheduled-restart.sh
+TimeoutStartSec=15min

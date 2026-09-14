@@ -1,0 +1,5 @@
+{
+  "name": "FileManager",
+  "description": "Secure authenticated root-confined file listing, editor, transfers, and archive operations.",
+  "version": "1.0.0"
+}

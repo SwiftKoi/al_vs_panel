@@ -1,0 +1,5 @@
+{
+  "name": "ServerManagement",
+  "description": "Configured game-server lifecycle, status, console, metrics, and log-stream orchestration.",
+  "version": "1.0.0"
+}

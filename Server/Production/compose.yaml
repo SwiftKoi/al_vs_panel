@@ -1,0 +1,25 @@
+services:
+  vintagestory-server:
+    build:
+      context: .
+      dockerfile: Dockerfile
+      args:
+        SERVER_UID: "${SERVER_UID:?Set SERVER_UID in Server/Development/.env}"
+        SERVER_GID: "${SERVER_GID:?Set SERVER_GID in Server/Development/.env}"
+    container_name: vintagestory-server-test2
+    init: true
+    environment:
+      VINTAGESTORY_SERVER_PATH: /server
+      VINTAGESTORY_DATA_PATH: /data
+      VINTAGESTORY_ARCHIVE_URL: "${VINTAGESTORY_ARCHIVE_URL:?Set VINTAGESTORY_ARCHIVE_URL in .env}"
+    ports:
+      - "9020:9020/tcp"
+    volumes:
+      - type: bind
+        source: ./Server
+        target: /server
+      - type: bind
+        source: ./Data
+        target: /data
+    stop_grace_period: 45s
+    restart: unless-stopped

@@ -1,0 +1,5 @@
+{
+  "name": "Authentication",
+  "description": "Single-admin authentication, session management, and Identity persistence.",
+  "version": "1.0.0"
+}

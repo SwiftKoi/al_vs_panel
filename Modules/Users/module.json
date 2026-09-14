@@ -1,0 +1,5 @@
+{
+  "name": "Users",
+  "description": "User identity persistence, seeding, and administrator CRUD management.",
+  "version": "1.0.0"
+}

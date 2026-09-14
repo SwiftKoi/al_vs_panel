@@ -1,0 +1,11 @@
+[Unit]
+Description=Start the Vintage Story midnight restart countdown
+
+[Timer]
+OnCalendar=*-*-* 23:50:00
+AccuracySec=1s
+Persistent=false
+Unit=vintagestory-restart.service
+
+[Install]
+WantedBy=timers.target

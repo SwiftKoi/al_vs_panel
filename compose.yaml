@@ -1,0 +1,57 @@
+services:
+  web:
+    build:
+      context: .
+      dockerfile: Dockerfile
+      target: development
+    ports:
+      - "127.0.0.1:3000:8080"
+    environment:
+      ASPNETCORE_ENVIRONMENT: Development
+      WorkspacePath: ${HOST_WORKSPACE_PATH:?Set HOST_WORKSPACE_PATH in .env}
+    secrets:
+      - admin_password
+      - ssh_private_key
+    volumes:
+      - type: bind
+        source: ./Server/Development
+        target: ${HOST_WORKSPACE_PATH}/Server/Development
+        read_only: true
+      - type: bind
+        source: ./Server/Development/Data
+        target: ${HOST_WORKSPACE_PATH}/Server/Development/Data
+
+      - type: bind
+        source: /var/run/docker.sock
+        target: /var/run/docker.sock
+      - app_data:/var/lib/alegacy/data
+      - data_protection_keys:/var/lib/alegacy/keys
+    init: true
+    read_only: true
+    tmpfs:
+      - /tmp:mode=1777
+    security_opt:
+      - no-new-privileges:true
+    cap_drop:
+      - ALL
+    group_add:
+      - "${DOCKER_GID:?Set DOCKER_GID in .env}"
+    restart: "no"
+
+  tests:
+    build:
+      context: .
+      dockerfile: Dockerfile
+      target: test
+    profiles:
+      - test
+
+volumes:
+  app_data:
+  data_protection_keys:
+
+secrets:
+  admin_password:
+    file: ./secrets/admin-password
+  ssh_private_key:
+    file: ./secrets/ssh-private-key

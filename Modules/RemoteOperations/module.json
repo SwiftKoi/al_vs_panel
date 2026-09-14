@@ -1,0 +1,5 @@
+{
+  "name": "RemoteOperations",
+  "description": "Target-aware allowlisted local and SSH operations with safe arguments and cancellable output streaming.",
+  "version": "1.2.0"
+}

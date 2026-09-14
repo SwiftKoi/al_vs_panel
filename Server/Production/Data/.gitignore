@@ -1,0 +1,4 @@
+# Runtime server data must not be committed; keep this directory and README.md.
+*
+!/.gitignore
+!/README.md

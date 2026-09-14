@@ -1,0 +1,5 @@
+{
+  "name": "Logging",
+  "description": "Persistent structured application log capture through a background SQLite writer and an authenticated log viewer with level, source, time, and text filtering.",
+  "version": "1.0.0"
+}

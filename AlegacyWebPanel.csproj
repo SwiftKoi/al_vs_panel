@@ -1,0 +1,38 @@
+<Project Sdk="Microsoft.NET.Sdk.Web">
+
+  <PropertyGroup>
+    <TargetFramework>net10.0</TargetFramework>
+    <Nullable>enable</Nullable>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <AllowMissingPrunePackageData>true</AllowMissingPrunePackageData>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <Compile Remove="Core/**/*.cs" />
+    <None Remove="Core/**" />
+    <Content Remove="Core/**" />
+    <EmbeddedResource Remove="Core/**" />
+    <Compile Remove="Modules/**/*.cs" />
+    <None Remove="Modules/**" />
+    <Content Remove="Modules/**" />
+    <EmbeddedResource Remove="Modules/**" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="Core/AlegacyWebPanel.Core.csproj" />
+    <ProjectReference Include="Modules/Users/AlegacyWebPanel.Users.csproj" />
+    <ProjectReference Include="Modules/Authentication/AlegacyWebPanel.Authentication.csproj" />
+    <ProjectReference Include="Modules/RemoteOperations/AlegacyWebPanel.RemoteOperations.csproj" />
+    <ProjectReference Include="Modules/ServerManagement/AlegacyWebPanel.ServerManagement.csproj" />
+    <ProjectReference Include="Modules/FileManager/AlegacyWebPanel.FileManager.csproj" />
+    <ProjectReference Include="Modules/Logging/AlegacyWebPanel.Logging.csproj" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <PackageReference Include="Microsoft.EntityFrameworkCore.Design" Version="10.0.10">
+      <PrivateAssets>all</PrivateAssets>
+      <IncludeAssets>runtime; build; native; contentfiles; analyzers; buildtransitive</IncludeAssets>
+    </PackageReference>
+  </ItemGroup>
+
+</Project>

@@ -1,0 +1,12 @@
+[Unit]
+Description=Announce and restart the Vintage Story server at midnight
+Requires=docker.service
+After=docker.service
+
+[Service]
+Type=oneshot
+User=@SERVICE_USER@
+Group=@SERVICE_GROUP@
+WorkingDirectory=@PRODUCTION_DIRECTORY@
+ExecStart=@RESTART_SCRIPT@
+TimeoutStartSec=15min
