@@ -6,6 +6,9 @@
 # dotenv files
 .env
 
+# Local compose override (deployment-specific: container name + platform network)
+compose.override.yaml
+
 .vscode
 .commandcode
 
