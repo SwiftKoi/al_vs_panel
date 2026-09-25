@@ -1,10 +1,12 @@
 using System.IO;
 using AlegacyWebPanel.Core.Errors;
+using AlegacyWebPanel.Modules.FileManager.Configuration;
 using AlegacyWebPanel.Modules.FileManager.Exceptions;
 using AlegacyWebPanel.Modules.FileManager.Services;
 using AlegacyWebPanel.Modules.RemoteOperations.Exceptions;
 using Microsoft.AspNetCore.Antiforgery;
 using Microsoft.AspNetCore.WebUtilities;
+using Microsoft.Extensions.Options;
 using Microsoft.Net.Http.Headers;
 
 namespace AlegacyWebPanel.Modules.FileManager.Endpoints;
@@ -104,6 +106,7 @@ public static class FileManagerEndpoints
         string root,
         HttpRequest request,
         IFileManagerService service,
+        IOptions<FileManagerOptions> options,
         CancellationToken cancellationToken,
         string? path = null)
     {
@@ -126,6 +129,20 @@ public static class FileManagerEndpoints
             !request.ContentType.StartsWith("multipart/form-data", StringComparison.OrdinalIgnoreCase))
         {
             return Results.BadRequest("Request must be multipart/form-data");
+        }
+
+        // Reject an oversized body before reading it. Streaming it would abort halfway
+        // (the helper process dies with a broken pipe) and could leave a truncated file
+        // behind. ContentLength covers the whole multipart body, hence the slack for
+        // boundaries and sibling form fields.
+        const long multipartSlack = 1024 * 1024;
+        var fileSizeLimit = options.Value.MaximumFileSizeBytes;
+        if (request.ContentLength is { } bodyLength && bodyLength > fileSizeLimit + multipartSlack)
+        {
+            throw new HttpException(
+                StatusCodes.Status413PayloadTooLarge,
+                "File too large",
+                $"File size exceeds the limit of {fileSizeLimit} bytes.");
         }
 
         var boundary = HeaderUtilities.RemoveQuotes(

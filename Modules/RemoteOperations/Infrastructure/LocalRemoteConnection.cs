@@ -184,11 +184,29 @@ public sealed class LocalRemoteConnection : IRemoteConnection
                 {
                     await stdin.CopyToAsync(process.StandardInput.BaseStream, cancellationToken);
                 }
-                finally
+                catch
                 {
-                    await process.StandardInput.BaseStream.FlushAsync(cancellationToken);
-                    process.StandardInput.Close();
+                    // The data stream failed half-way (size limit exceeded, client
+                    // aborted). Kill the helper before it sees EOF — otherwise it
+                    // would treat the truncated bytes as a complete file and rename
+                    // them over the real one.
+                    try
+                    {
+                        if (!process.HasExited)
+                        {
+                            process.Kill(entireProcessTree: true);
+                        }
+                    }
+                    catch
+                    {
+                        // It may have exited on its own in the meantime.
+                    }
+
+                    TryCloseStandardInput(process);
+                    throw;
                 }
+
+                TryCloseStandardInput(process);
             }, cancellationToken);
             tasks.Add(writeTask);
         }
@@ -206,7 +224,6 @@ public sealed class LocalRemoteConnection : IRemoteConnection
         try
         {
             await process.WaitForExitAsync(cancellationToken);
-            await Task.WhenAll(tasks);
         }
         catch (OperationCanceledException)
         {
@@ -217,12 +234,52 @@ public sealed class LocalRemoteConnection : IRemoteConnection
             throw;
         }
 
+        try
+        {
+            await Task.WhenAll(tasks);
+        }
+        catch (IOException) when (process.HasExited)
+        {
+            // A broken pipe from the stdin writer just means the helper closed its end
+            // first because it exited. The exit code and stderr below say why, so let
+            // them win instead of masking the real reason.
+        }
+        catch (ObjectDisposedException) when (process.HasExited)
+        {
+            // Same situation, seen while flushing an already closed pipe.
+        }
+
         var exitCode = process.ExitCode;
         var errorOutput = readErrorTask.IsCompletedSuccessfully ? readErrorTask.Result : string.Empty;
 
         if (exitCode != 0)
         {
             throw new RemoteOperationFailedException(definition.Operation, exitCode, errorOutput);
+        }
+    }
+
+    /// <summary>
+    /// Flushes and closes the child's stdin, tolerating a helper that has already
+    /// exited and closed its end of the pipe.
+    /// </summary>
+    private static void TryCloseStandardInput(Process process)
+    {
+        try
+        {
+            process.StandardInput.Flush();
+        }
+        catch (Exception exception) when (exception is IOException or ObjectDisposedException or InvalidOperationException)
+        {
+            // Nothing left to flush.
+        }
+
+        try
+        {
+            process.StandardInput.Close();
+        }
+        catch (Exception exception) when (exception is IOException or ObjectDisposedException or InvalidOperationException)
+        {
+            // Already closed together with the process.
         }
     }
 }

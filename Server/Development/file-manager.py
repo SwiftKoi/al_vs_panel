@@ -103,14 +103,38 @@ def write_file(root_path, relative_path):
         print_err("Error: Parent directory does not exist.")
         sys.exit(6)
         
+    # Sweep leftovers from earlier aborted uploads of the same file: the helper is
+    # killed on abort, so it cannot clean up after itself.
+    prefix = f".{os.path.basename(target_path)}."
     try:
-        with open(target_path, 'wb') as f:
+        for entry in os.listdir(parent_dir):
+            if entry.startswith(prefix) and entry.endswith(".part"):
+                try:
+                    os.unlink(os.path.join(parent_dir, entry))
+                except OSError:
+                    pass
+    except OSError:
+        pass
+
+    # Write to a sibling temp file and rename only once the whole stream has been
+    # consumed. Otherwise an aborted upload (size limit hit, client disconnected)
+    # would leave a truncated file behind — or replace a good one with it.
+    tmp_path = os.path.join(parent_dir, f".{os.path.basename(target_path)}.{os.getpid()}.part")
+    try:
+        with open(tmp_path, 'wb') as f:
             while True:
                 chunk = sys.stdin.buffer.read(64 * 1024)
                 if not chunk:
                     break
                 f.write(chunk)
+            f.flush()
+            os.fsync(f.fileno())
+        os.replace(tmp_path, target_path)
     except Exception as e:
+        try:
+            os.unlink(tmp_path)
+        except OSError:
+            pass
         print_err(f"Error writing file: {e}")
         sys.exit(7)
 
