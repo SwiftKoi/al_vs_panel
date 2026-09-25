@@ -1,14 +1,23 @@
+using System.ComponentModel;
 using System.Diagnostics;
 using System.Runtime.CompilerServices;
 using System.Text;
 using System.Threading.Channels;
 using AlegacyWebPanel.Modules.RemoteOperations.Contracts;
 using AlegacyWebPanel.Modules.RemoteOperations.Exceptions;
+using Microsoft.Extensions.Logging;
 
 namespace AlegacyWebPanel.Modules.RemoteOperations.Infrastructure;
 
 public sealed class LocalRemoteConnection : IRemoteConnection
 {
+    private readonly ILogger<LocalRemoteConnection>? _logger;
+
+    public LocalRemoteConnection(ILogger<LocalRemoteConnection>? logger = null)
+    {
+        _logger = logger;
+    }
+
     public async Task<RemoteConnectionResult> ExecuteAsync(
         RemoteCommandDefinition definition,
         IReadOnlyList<string> arguments,
@@ -184,29 +193,21 @@ public sealed class LocalRemoteConnection : IRemoteConnection
                 {
                     await stdin.CopyToAsync(process.StandardInput.BaseStream, cancellationToken);
                 }
-                catch
+                catch (Exception exception)
                 {
                     // The data stream failed half-way (size limit exceeded, client
-                    // aborted). Kill the helper before it sees EOF — otherwise it
-                    // would treat the truncated bytes as a complete file and rename
-                    // them over the real one.
-                    try
-                    {
-                        if (!process.HasExited)
-                        {
-                            process.Kill(entireProcessTree: true);
-                        }
-                    }
-                    catch
-                    {
-                        // It may have exited on its own in the meantime.
-                    }
-
-                    TryCloseStandardInput(process);
+                    // aborted): kill the helper before it sees EOF, otherwise it treats
+                    // the truncated bytes as a complete file and renames them over the
+                    // real one. Rethrow — this is the error worth reporting.
+                    _logger?.LogDebug(exception, "Upload stream failed for {Operation}; killing the helper.",
+                        definition.Operation);
+                    KillIfRunning(process);
                     throw;
                 }
-
-                TryCloseStandardInput(process);
+                finally
+                {
+                    CloseStandardInput(process);
+                }
             }, cancellationToken);
             tasks.Add(writeTask);
         }
@@ -238,15 +239,13 @@ public sealed class LocalRemoteConnection : IRemoteConnection
         {
             await Task.WhenAll(tasks);
         }
-        catch (IOException) when (process.HasExited)
+        catch (Exception exception) when (process.HasExited && exception is IOException or ObjectDisposedException)
         {
-            // A broken pipe from the stdin writer just means the helper closed its end
+            // A broken pipe from the stdin writer only means the helper closed its end
             // first because it exited. The exit code and stderr below say why, so let
             // them win instead of masking the real reason.
-        }
-        catch (ObjectDisposedException) when (process.HasExited)
-        {
-            // Same situation, seen while flushing an already closed pipe.
+            _logger?.LogDebug(exception, "Helper exited before consuming all of stdin ({Operation}).",
+                definition.Operation);
         }
 
         var exitCode = process.ExitCode;
@@ -258,28 +257,33 @@ public sealed class LocalRemoteConnection : IRemoteConnection
         }
     }
 
-    /// <summary>
-    /// Flushes and closes the child's stdin, tolerating a helper that has already
-    /// exited and closed its end of the pipe.
-    /// </summary>
-    private static void TryCloseStandardInput(Process process)
+    /// <summary>Closes the helper's stdin, tolerating one that already exited.</summary>
+    private void CloseStandardInput(Process process)
     {
         try
         {
-            process.StandardInput.Flush();
-        }
-        catch (Exception exception) when (exception is IOException or ObjectDisposedException or InvalidOperationException)
-        {
-            // Nothing left to flush.
-        }
-
-        try
-        {
+            // Close() flushes; the payload was written straight to the base stream anyway.
             process.StandardInput.Close();
         }
         catch (Exception exception) when (exception is IOException or ObjectDisposedException or InvalidOperationException)
         {
-            // Already closed together with the process.
+            _logger?.LogDebug(exception, "Stdin was already closed by the helper.");
+        }
+    }
+
+    /// <summary>Stops the helper, tolerating one that exited on its own in the meantime.</summary>
+    private void KillIfRunning(Process process)
+    {
+        try
+        {
+            if (!process.HasExited)
+            {
+                process.Kill(entireProcessTree: true);
+            }
+        }
+        catch (Exception exception) when (exception is InvalidOperationException or NotSupportedException or Win32Exception)
+        {
+            _logger?.LogDebug(exception, "Could not kill the helper; it had already exited.");
         }
     }
 }
