@@ -5,6 +5,16 @@ type CsrfResponse = { token: string };
 let csrfToken: string | undefined;
 let csrfRequest: Promise<string> | undefined;
 
+/**
+ * Drop the cached anti-forgery token so the next state-changing request fetches
+ * a fresh one. The token is bound to the current user's claims, so any change of
+ * identity — login, logout, or a session refresh — invalidates every token that
+ * was issued before it.
+ */
+export function invalidateCsrfToken(): void {
+  csrfToken = undefined;
+}
+
 async function getCsrfToken(): Promise<string> {
   if (csrfToken) return csrfToken;
   csrfRequest ??= fetch("/auth/csrf", { credentials: "include" })
@@ -30,11 +40,21 @@ export class ApiError extends Error {
 }
 
 export async function apiRequest<T>(path: string, init?: RequestInit): Promise<T> {
+  return sendRequest<T>(path, init, false);
+}
+
+async function sendRequest<T>(path: string, init: RequestInit | undefined, isRetry: boolean): Promise<T> {
+  const stateChanging = isStateChanging(init?.method);
+  // A cached token can belong to a previous session. If the server rejects it we
+  // refresh once and retry, rather than leaving the panel broken until the user
+  // reloads the page.
+  const usedCachedToken = stateChanging && csrfToken !== undefined;
+
   const headers = new Headers(init?.headers);
   if (!(init?.body instanceof FormData)) {
     headers.set("Content-Type", "application/json");
   }
-  if (isStateChanging(init?.method)) {
+  if (stateChanging) {
     headers.set("X-CSRF-TOKEN", await getCsrfToken());
   }
 
@@ -44,11 +64,17 @@ export async function apiRequest<T>(path: string, init?: RequestInit): Promise<T
     headers
   });
 
-  if (response.status === 401 && path !== "/auth/login") {
-    window.dispatchEvent(new Event("auth:unauthorized"));
-  }
-
   if (!response.ok) {
+    if (stateChanging && usedCachedToken && !isRetry && response.status === 400) {
+      invalidateCsrfToken();
+      return sendRequest<T>(path, init, true);
+    }
+
+    if (response.status === 401 && path !== "/auth/login") {
+      invalidateCsrfToken();
+      window.dispatchEvent(new Event("auth:unauthorized"));
+    }
+
     let message: string | undefined;
     try {
       const problem = (await response.json()) as ProblemDetails;
@@ -86,11 +112,26 @@ export type TwoFactorSetupResponse = {
 };
 
 export const api = {
-  login: (username: string, password: string) =>
-    apiRequest<LoginResponse>("/auth/login", { method: "POST", body: JSON.stringify({ username, password }) }),
+  login: async (username: string, password: string) => {
+    // The identity changes on success, so a token fetched for the anonymous
+    // session must not survive it.
+    invalidateCsrfToken();
+    return apiRequest<LoginResponse>("/auth/login", { method: "POST", body: JSON.stringify({ username, password }) });
+  },
   session: () => apiRequest<AuthenticationSessionResponse>("/auth/session"),
-  refresh: () => apiRequest<AuthenticationSessionResponse>("/auth/refresh", { method: "POST" }),
-  logout: () => apiRequest<void>("/auth/logout", { method: "POST" }),
+  refresh: async () => {
+    const session = await apiRequest<AuthenticationSessionResponse>("/auth/refresh", { method: "POST" });
+    // A refreshed session carries new claims, which invalidates the old token.
+    invalidateCsrfToken();
+    return session;
+  },
+  logout: async () => {
+    try {
+      await apiRequest<void>("/auth/logout", { method: "POST" });
+    } finally {
+      invalidateCsrfToken();
+    }
+  },
   health: () => apiRequest<HealthResponse>("/health"),
 
   // 2FA Endpoints
@@ -111,4 +152,3 @@ export const api = {
   deleteUser: (id: string) =>
     apiRequest<void>(`/api/users/${id}`, { method: "DELETE" })
 };
-

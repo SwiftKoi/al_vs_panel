@@ -3,6 +3,7 @@ using AlegacyWebPanel.Core.Errors;
 using AlegacyWebPanel.Modules.FileManager.Exceptions;
 using AlegacyWebPanel.Modules.FileManager.Services;
 using AlegacyWebPanel.Modules.RemoteOperations.Exceptions;
+using Microsoft.AspNetCore.Antiforgery;
 using Microsoft.AspNetCore.WebUtilities;
 using Microsoft.Net.Http.Headers;
 
@@ -106,7 +107,23 @@ public static class FileManagerEndpoints
         CancellationToken cancellationToken,
         string? path = null)
     {
-        if (!request.HasFormContentType)
+        // The antiforgery middleware records the validation outcome on the request.
+        // Touching the form without consulting it throws InvalidOperationException
+        // ("invalid anti-forgery token") and surfaces as HTTP 500 — so check it
+        // first and reject a stale token with a clean, retryable 400.
+        var antiforgery = request.HttpContext.Features.Get<IAntiforgeryValidationFeature>();
+        if (antiforgery is { IsValid: false })
+        {
+            return Results.Problem(
+                title: "Invalid anti-forgery token",
+                detail: "The anti-forgery token is missing, expired, or was issued for a previous session. Fetch a new token from /auth/csrf and retry.",
+                statusCode: StatusCodes.Status400BadRequest);
+        }
+
+        // Deliberately not request.HasFormContentType: that property touches the
+        // form feature itself, which is exactly what throws on an unvalidated form.
+        if (request.ContentType is null ||
+            !request.ContentType.StartsWith("multipart/form-data", StringComparison.OrdinalIgnoreCase))
         {
             return Results.BadRequest("Request must be multipart/form-data");
         }
