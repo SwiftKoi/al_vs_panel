@@ -9,9 +9,11 @@ services:
     environment:
       ASPNETCORE_ENVIRONMENT: Development
       WorkspacePath: ${HOST_WORKSPACE_PATH:?Set HOST_WORKSPACE_PATH in .env}
+      AutomationApi__Enabled: "true"
     secrets:
       - admin_password
       - ssh_private_key
+      - api_key
     volumes:
       - type: bind
         source: ./Server/Development
@@ -55,3 +57,5 @@ secrets:
     file: ./secrets/admin-password
   ssh_private_key:
     file: ./secrets/ssh-private-key
+  api_key:
+    file: ./secrets/api-key

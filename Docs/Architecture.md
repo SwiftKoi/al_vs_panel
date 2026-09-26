@@ -76,6 +76,19 @@ HTTP request -> ServerManagement endpoint -> ServerManagement service
 
 Owns remote file management capabilities including directory listings, file downloading and uploading, text editor content loading and saving, basic mutations (mkdir, rename, move, delete), and long-running background tasks (zip compression and unzip extraction) with in-memory task status monitoring. It communicates using `IRemoteOperationsService` to execute the python-based `file-manager.py` target-side helper. It applies path containment validation, NUL-byte binary checking, and entry-level zip-slip filters for system security.
 
+### AutomationApi
+
+Owns the secret-authenticated automation API surface under `/api/v1`, its API-key authentication scheme, and its configuration. It calls the public FileManager and ServerManagement service interfaces and adds no business rules of its own: file and lifecycle semantics, validation, and domain exceptions stay with the owning modules.
+
+The request flow is:
+
+```text
+HTTP request -> AutomationApi endpoint -> API-key policy (X-Api-Key)
+             -> IFileManagerService / IServerManagementService
+```
+
+The API is disabled unless `AutomationApi:Enabled` is set, and it is separate from the browser cookie/CSRF routes. The presented key is validated against a mounted secret file with a length-independent, timing-safe comparison and is never logged.
+
 ### Logging
 
 Owns persistent application log capture and the authenticated log viewer. `AddLoggingModule` registers a global `ILoggerProvider` (`SqliteLogProvider`) so every `ILogger<T>` call in any module or in Core is captured. Logged entries are formatted by `SqliteLogWriter`, enqueued into a bounded in-memory channel, and written by the background `LogWriteWorker` in batches to a dedicated SQLite database (`/var/lib/alegacy/data/logs.db`). The worker also prunes retained entries and flushes remaining entries on graceful shutdown. The viewer exposes paged, filterable log queries plus level counts, source lists, an error feed, and a clear action.

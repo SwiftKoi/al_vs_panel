@@ -44,6 +44,24 @@ Authentication settings are under `Authentication`. The default cookie lifetime 
 
 Login-attempt auditing is configured under `Authentication:LoginLog`. `MaxRetainedDays` (default 90) bounds the `LoginEvents` audit table; entries older than the window are pruned on the next recorded login.
 
+## Automation API configuration
+
+Automation API settings are under `AutomationApi` and are owned by the AutomationApi module:
+
+```json
+{
+  "AutomationApi": {
+    "Enabled": true,
+    "KeyFile": "/run/secrets/api_key"
+  }
+}
+```
+
+- `Enabled` maps the `/api/v1` routes. It defaults to `false`; when disabled, the routes do not exist and the browser and Compose deployments behave as before.
+- `KeyFile` is the mounted secret file that holds the pre-shared key. The default is `/run/secrets/api_key`. The file is read on every request, so replacing its contents rotates the key without a restart.
+
+Startup validation fails when the API is enabled and `KeyFile` does not exist. The Compose files mount `secrets/api-key` as `api_key` and set `AutomationApi__Enabled=true`; `python3 manage.py setup` generates the local key file. See the [AutomationApi guide](../Modules/AutomationApi/README.md) for the endpoint reference and client examples.
+
 ## Module configuration
 
 Module-specific configuration belongs under a module-specific configuration section. The module’s options type and configuration binding belong to that module. Do not make `Program.cs` interpret module settings.

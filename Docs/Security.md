@@ -41,6 +41,19 @@ Security controls:
 - **Zip-Slip Boundary Checks**: Iterates through archive member targets, verifying they resolve strictly within the target extraction directory boundary.
 - **Feedback Loops Prevention**: Excludes the target archive itself from walking directory contents during compression to prevent infinite growing loops.
 
+## Automation API
+
+The AutomationApi module exposes `/api/v1` routes for machine clients: server discovery and status, path-confined file listing, download, and upload, and server start/stop/restart. It authenticates every request with the `X-Api-Key` header.
+
+Security controls:
+
+- **Mounted secret**: The key is read from `AutomationApi:KeyFile` (default `/run/secrets/api_key`) per request. The file is never read from request data, and the application fails startup when the API is enabled without an existing secret file.
+- **Timing-safe comparison**: The presented key and configured secret are hashed with SHA-256 and compared with `CryptographicOperations.FixedTimeEquals`, so the result neither leaks length nor depends on an early-exit character comparison. The key is never logged.
+- **Disabled by default**: `AutomationApi:Enabled` defaults to `false`. When disabled, the routes are not mapped and return `404`. Compose enables the API only together with the mounted secret.
+- **Scheme isolation**: The `/api/v1` group requires a policy that pins the `AutomationApiKey` authentication scheme. A browser cookie alone cannot authorize these routes, and the API key does not authorize browser routes.
+- **No CSRF surface**: API-key requests are not cookie-authenticated, so the routes do not require antiforgery tokens. Existing cookie-authenticated routes keep their CSRF requirements.
+- **Reused module rules**: File access stays subject to FileManager root configuration, path containment, writable-root checks, and size limits; lifecycle operations stay subject to ServerManagement operation allowlists and per-server lifecycle coordination. The API adds no bypass.
+
 ## Container
 
 The development Compose service binds the application to localhost. The production Compose service publishes only the Caddy gateway on ports 80 and 443; the ASP.NET service is private to the application network. Both services use read-only root filesystems, drop Linux capabilities, enable `no-new-privileges`, and keep writable state in named volumes. Production services restart unless stopped.

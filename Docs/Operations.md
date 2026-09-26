@@ -41,10 +41,15 @@ Run it again if the repository is moved or the production server account
 changes. The timer is deliberately non-persistent, so a host that is offline at
 23:50 does not perform a delayed restart after boot.
 
-
 The gateway needs persistent `caddy_data` and `caddy_config` volumes for certificate and runtime state. Do not delete them during routine deployments. Caddy's automatic HTTPS requires the hostname to resolve to this host and ports 80/443 to be reachable for certificate issuance.
 
 The production file intentionally does not configure game-server targets or commands. Supply those through production configuration/environment values, and do not expose the Docker socket unless local execution is explicitly required. Do not expose the SSH management capability directly to the public internet.
+
+## Automation API
+
+Machine clients call the secret-authenticated API under `/api/v1` for server discovery, status, file listing, download, upload, and start/stop/restart. The production gateway proxies `/api/*` to the application, so these routes are reachable on the public domain and protected only by the `X-Api-Key` secret. Send the key over HTTPS only and keep it out of shell history and logs.
+
+`python3 manage.py setup` generates `secrets/api-key`, and the Compose files mount it as `/run/secrets/api_key` with `AutomationApi__Enabled=true`. Rotate the key by replacing the contents of the mounted secret file: the application reads the file on every request, so with Compose file-backed secrets the change is picked up immediately. If the secret is delivered another way, restart the container after replacing it. The endpoint reference and curl examples live in the [AutomationApi module guide](../Modules/AutomationApi/README.md).
 
 ## Application logs
 
@@ -79,6 +84,8 @@ When investigating a failure, identify the module from the request or log contex
 - **Unexpected logouts after a restart:** confirm that the data-protection volume is present and retained.
 - **The login screen appears after a reload:** inspect `GET /auth/session`, the authentication cookie, and the data-protection volume. The frontend restores its state from the backend session rather than local browser storage.
 - **Protected API calls return `401`:** the cookie may have expired or the account may have been invalidated. Log in again; inspect the session and refresh endpoints before changing cookie settings.
+- **Automation API returns `404`:** confirm `AutomationApi:Enabled` is true and the secret file existed at startup.
+- **Automation API returns `401`:** confirm the `X-Api-Key` value matches the mounted `api_key` secret exactly.
 - **Remote operation failure:** verify the remote host, port, username, key, host fingerprint, and command allowlist. Check the remote account's permissions and connectivity separately.
 - **Missing or empty application logs:** confirm the `app_data` volume is writable and mounted, that `LogStore` is configured, and that the persisted minimum level is not above the events being examined. The log viewer shows persisted events; the console may show a superset.
 - **Log entries dropped:** the bounded capture buffer reported drops because writes outran the background writer. Increase `LogStore:BufferCapacity` or lower `LogStore:MinimumLevel`.

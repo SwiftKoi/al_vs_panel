@@ -2,18 +2,19 @@
 
 This directory contains sensitive files that Docker mounts into the application container at runtime. It is intentionally ignored by Git. Never commit this directory's contents, paste them into an issue, or put them in `appsettings.json`, `.env`, or frontend code.
 
-The Compose deployment expects two files:
+The Compose deployment expects three files:
 
 | File | Purpose |
 | --- | --- |
 | `admin-password` | Password for the initial local `admin` account. The application reads it during startup when it seeds the authentication database. |
 | `ssh-private-key` | Private SSH key used by the backend to authenticate to the configured remote server. It is not a Docker encryption key and it is not used to authenticate browser users. |
+| `api-key` | Pre-shared key for the secret-authenticated automation API under `/api/v1`. Send it as the `X-Api-Key` header. |
 
 The application runs as the non-root container user with numeric GID `1654`. With regular local Docker Compose file-backed secrets, the host file permissions are preserved when the files are mounted. The secret files therefore need to be readable by group `1654`, but not by everyone:
 
 ```sh
-sudo chgrp 1654 secrets/admin-password secrets/ssh-private-key
-chmod 640 secrets/admin-password secrets/ssh-private-key
+sudo chgrp 1654 secrets/admin-password secrets/ssh-private-key secrets/api-key
+chmod 640 secrets/admin-password secrets/ssh-private-key secrets/api-key
 ```
 
 The `sudo` is needed because the host group ID may not exist as a named group on the deployment machine. Do not use `chmod 644`; that would expose the secrets to every local user.
@@ -105,6 +106,19 @@ chmod 640 secrets/admin-password
 
 The value in this file is the password used for the first seeded admin account. Keep it in a password manager. Do not put it in the frontend, Compose file, or application settings.
 
+## Create the automation API key
+
+Generate a strong key for the automation API:
+
+```sh
+umask 077
+openssl rand -base64 48 > secrets/api-key
+sudo chgrp 1654 secrets/api-key
+chmod 640 secrets/api-key
+```
+
+Send the file contents as the `X-Api-Key` header when calling `/api/v1` routes. The application reads the file on every request, so replacing the file content rotates the key without a restart. The key is a bearer credential: keep it out of logs and shell history, and never commit it.
+
 ## Complete setup
 
 From the repository root, run:
@@ -114,9 +128,10 @@ mkdir -p secrets
 chmod 700 secrets
 umask 077
 openssl rand -base64 32 > secrets/admin-password
+openssl rand -base64 48 > secrets/api-key
 cp /path/to/your/ssh/private/key secrets/ssh-private-key
-sudo chgrp 1654 secrets/admin-password secrets/ssh-private-key
-chmod 640 secrets/admin-password secrets/ssh-private-key
+sudo chgrp 1654 secrets/admin-password secrets/ssh-private-key secrets/api-key
+chmod 640 secrets/admin-password secrets/ssh-private-key secrets/api-key
 ```
 
 Replace `/path/to/your/ssh/private/key` with either an existing private key or the dedicated key created above. Confirm that the files exist and have restrictive permissions:
@@ -131,6 +146,7 @@ The expected permissions are approximately:
 drwx------ secrets/
 -rw-r----- secrets/admin-password
 -rw-r----- secrets/ssh-private-key
+-rw-r----- secrets/api-key
 ```
 
 Start the application after the files are present:
@@ -156,8 +172,10 @@ The host-key fingerprint verifies that the application is connecting to the expe
 
 ## Troubleshooting
 
-- **`bind source path does not exist`:** create both `secrets/admin-password` and `secrets/ssh-private-key` before running Compose.
-- **`Access to `/run/secrets/...` is denied:** verify that both files have group `1654` and mode `640`; rerun the `sudo chgrp` and `chmod 640` commands above.
+- **`bind source path does not exist`:** create `secrets/admin-password`, `secrets/ssh-private-key`, and `secrets/api-key` before running Compose.
+- **`Access to `/run/secrets/...` is denied:** verify that all secret files have group `1654` and mode `640`; rerun the `sudo chgrp` and `chmod 640` commands above.
+- **Automation API returns `404`:** enable it with `AutomationApi:Enabled` (`AutomationApi__Enabled=true` in Compose) and make sure the secret file exists before the container starts.
+- **Automation API returns `401`:** confirm the `X-Api-Key` value matches `secrets/api-key` exactly and that the container can read the mounted file.
 - **`Permission denied (publickey)`:** verify that the matching `.pub` key is in the configured remote user's `authorized_keys`, the username is correct, and the private key works with `ssh -i`.
 - **Private key parsing or passphrase errors:** the container cannot answer an interactive passphrase prompt. Use a dedicated key without a passphrase or add supported passphrase handling.
 - **Host-key fingerprint mismatch:** verify the configured SHA-256 fingerprint against the trusted remote server. Do not replace it blindly.

@@ -1,0 +1,5 @@
+{
+  "name": "AutomationApi",
+  "description": "Secret-authenticated automation API for game-server file transfers and lifecycle operations.",
+  "version": "1.0.0"
+}

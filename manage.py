@@ -96,9 +96,19 @@ def setup_secrets():
             print(f"[-] Error generating SSH key: {e}")
     else:
         print(f"[~] SSH key already exists in {ssh_key_path}")
-        
-    # 4. Correct permissions of secret files
-    for file_name in ["admin-password", "ssh-private-key"]:
+
+    # 4. Generate api-key if not present
+    api_key_path = os.path.join(secrets_dir, "api-key")
+    if not os.path.exists(api_key_path):
+        api_key = secrets.token_urlsafe(32)
+        with open(api_key_path, "w") as f:
+            f.write(api_key + "\n")
+        print(f"[+] Generated new automation API key in {api_key_path}")
+    else:
+        print(f"[~] Automation API key already exists in {api_key_path}")
+
+    # 5. Correct permissions of secret files
+    for file_name in ["admin-password", "ssh-private-key", "api-key"]:
         file_path = os.path.join(secrets_dir, file_name)
         if os.path.exists(file_path):
             os.chmod(file_path, 0o640)

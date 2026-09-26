@@ -8,6 +8,7 @@ COPY ["Modules/Authentication/AlegacyWebPanel.Authentication.csproj", "Modules/A
 COPY ["Modules/RemoteOperations/AlegacyWebPanel.RemoteOperations.csproj", "Modules/RemoteOperations/"]
 COPY ["Modules/ServerManagement/AlegacyWebPanel.ServerManagement.csproj", "Modules/ServerManagement/"]
 COPY ["Modules/FileManager/AlegacyWebPanel.FileManager.csproj", "Modules/FileManager/"]
+COPY ["Modules/AutomationApi/AlegacyWebPanel.AutomationApi.csproj", "Modules/AutomationApi/"]
 COPY ["Modules/Logging/AlegacyWebPanel.Logging.csproj", "Modules/Logging/"]
 RUN dotnet restore
 
