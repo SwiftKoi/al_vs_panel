@@ -1,0 +1,5 @@
+{
+  "name": "Analytics",
+  "description": "Recorded player activity and connection-quality history: background sampling of live client connections, server-log join import, and player/proxy statistics.",
+  "version": "1.0.0"
+}

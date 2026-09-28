@@ -62,7 +62,7 @@ Owns named local/SSH execution targets, allowlisted target-bound operations, saf
 
 ### ServerManagement
 
-Owns configured game-server profiles, lifecycle/status orchestration, per-server lifecycle coordination, console-command validation, metrics mapping, safe log events, server HTTP contracts, domain exceptions, and server-management tests. It depends only on the public `IRemoteOperationsService` contract for local or SSH execution.
+Owns configured game-server profiles, lifecycle/status orchestration, per-server lifecycle coordination, console-command validation, metrics mapping, client-connection diagnostics, safe log events, server HTTP contracts, domain exceptions, and server-management tests. It depends only on the public `IRemoteOperationsService` contract for local or SSH execution.
 
 Server requests follow this module-to-module flow:
 
@@ -103,6 +103,10 @@ ILogger<T> -> SqliteLogProvider -> SqliteLogWriter -> bounded channel
 The viewer follows the standard flow: `HTTP request -> Logging endpoint -> ILoggingService -> ILogRepository -> LogDbContext`.
 
 The log database is intentionally separate from the authentication database so log write contention or log storage failures cannot affect authentication. Structured state is serialized with size bounds, `SecretValue` values are redacted, and the buffer drops entries without blocking when full.
+
+### Analytics
+
+Owns recorded player activity and connection-quality history. A background worker samples live client connections through the public `IServerManagementService.GetConnectionsAsync` contract and imports player joins from server logs through an allowlisted RemoteOperations command, storing both in a dedicated SQLite database (`/var/lib/alegacy/data/analytics.db`). Queries follow `HTTP request -> Analytics endpoint -> IAnalyticsService -> IAnalyticsRepository -> AnalyticsDbContext`. See [`Modules/Analytics/README.md`](../Modules/Analytics/README.md) for sources, configuration, and the roadmap.
 
 ## Persistence and state
 

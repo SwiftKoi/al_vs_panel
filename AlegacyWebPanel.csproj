@@ -27,6 +27,7 @@
     <ProjectReference Include="Modules/FileManager/AlegacyWebPanel.FileManager.csproj" />
     <ProjectReference Include="Modules/AutomationApi/AlegacyWebPanel.AutomationApi.csproj" />
     <ProjectReference Include="Modules/Logging/AlegacyWebPanel.Logging.csproj" />
+    <ProjectReference Include="Modules/Analytics/AlegacyWebPanel.Analytics.csproj" />
   </ItemGroup>
 
   <ItemGroup>

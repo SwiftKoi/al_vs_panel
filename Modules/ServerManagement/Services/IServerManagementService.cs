@@ -15,6 +15,7 @@ public interface IServerManagementService
         string command,
         CancellationToken cancellationToken);
     Task<ServerMetricsResponse> GetMetricsAsync(string serverId, CancellationToken cancellationToken);
+    Task<ServerConnectionsResponse> GetConnectionsAsync(string serverId, CancellationToken cancellationToken);
     Task<IAsyncEnumerable<ServerLogEvent>> OpenLogStreamAsync(
         string serverId,
         CancellationToken cancellationToken);

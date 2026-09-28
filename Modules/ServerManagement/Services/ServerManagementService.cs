@@ -113,6 +113,36 @@ public sealed class ServerManagementService(
         }
     }
 
+    public async Task<ServerConnectionsResponse> GetConnectionsAsync(
+        string serverId,
+        CancellationToken cancellationToken)
+    {
+        var server = await FindServerAsync(serverId, cancellationToken);
+        var result = await ExecuteRequiredAsync(server.ConnectionsOperation, [], cancellationToken);
+        try
+        {
+            var snapshot = JsonSerializer.Deserialize<ConnectionsOperationResult>(result.StandardOutput,
+                new JsonSerializerOptions { PropertyNameCaseInsensitive = true });
+            if (snapshot?.Connections is null || snapshot.Connections.Any(connection =>
+                    string.IsNullOrWhiteSpace(connection.RemoteAddress)))
+            {
+                throw new JsonException();
+            }
+
+            var connections = snapshot.Connections
+                .OrderBy(connection => connection.PlayerName is null)
+                .ThenBy(connection => connection.PlayerName, StringComparer.OrdinalIgnoreCase)
+                .ThenBy(connection => connection.RemoteAddress, StringComparer.Ordinal)
+                .ToArray();
+            return new ServerConnectionsResponse(server.Id, connections);
+        }
+        catch (JsonException)
+        {
+            logger.LogWarning("Failed to parse connections for server {ServerId}", server.Id);
+            throw new InvalidServerConnectionsException();
+        }
+    }
+
     public async Task<IAsyncEnumerable<ServerLogEvent>> OpenLogStreamAsync(
         string serverId,
         CancellationToken cancellationToken)
@@ -247,6 +277,8 @@ public sealed class ServerManagementService(
             throw new InvalidServerCommandException("The console command contains unsupported control characters.");
         }
     }
+
+    private sealed record ConnectionsOperationResult(IReadOnlyList<ServerClientConnection>? Connections);
 
     private sealed record MetricsOperationResult(
         decimal CpuPercent,

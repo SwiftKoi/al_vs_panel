@@ -15,5 +15,8 @@ public sealed class ServerUnavailableException(string message) : DomainException
 
 public sealed class InvalidServerCommandException(string message) : DomainException(message);
 
+public sealed class InvalidServerConnectionsException()
+    : DomainException("The configured connections operation returned an invalid response.");
+
 public sealed class InvalidServerMetricsException()
     : DomainException("The configured metrics operation returned an invalid response.");

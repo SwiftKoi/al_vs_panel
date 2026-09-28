@@ -15,6 +15,8 @@ using AlegacyWebPanel.Modules.FileManager.Endpoints;
 using AlegacyWebPanel.Modules.FileManager.Infrastructure;
 using AlegacyWebPanel.Modules.AutomationApi.Endpoints;
 using AlegacyWebPanel.Modules.AutomationApi.Infrastructure;
+using AlegacyWebPanel.Modules.Analytics.Endpoints;
+using AlegacyWebPanel.Modules.Analytics.Infrastructure;
 using AlegacyWebPanel.Modules.Logging.Endpoints;
 using AlegacyWebPanel.Modules.Logging.Infrastructure;
 using Microsoft.AspNetCore.DataProtection;
@@ -49,6 +51,7 @@ builder.Services.AddRemoteOperationsModule(builder.Configuration);
 builder.Services.AddServerManagementModule(builder.Configuration);
 builder.Services.AddFileManagerModule(builder.Configuration);
 builder.Services.AddAutomationApiModule(builder.Configuration);
+builder.Services.AddAnalyticsModule(builder.Configuration);
 
 var app = builder.Build();
 
@@ -71,5 +74,6 @@ app.MapServerManagementModule();
 app.MapFileManagerModule();
 app.MapAutomationApiModule();
 app.MapLoggingModule();
+app.MapAnalyticsModule();
 
 app.Run();

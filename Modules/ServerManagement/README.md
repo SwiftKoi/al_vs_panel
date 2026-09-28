@@ -91,9 +91,10 @@ server-control.sh status
 server-control.sh command -- <game-command>
 server-control.sh logs
 server-metrics.sh
+server-connections.sh (optional)
 ```
 
-`status` prints `online` or `offline` based on Docker Compose service state. Logs remain running and write log lines to standard output. Metrics print the JSON shape produced by `server-metrics.sh`.
+`status` prints `online` or `offline` based on Docker Compose service state. Logs remain running and write log lines to standard output. Metrics print the JSON shape produced by `server-metrics.sh`. The optional connections operation prints `{"connections":[...]}` as produced by `server-connections.sh`.
 
 ## Multiple local and remote servers
 

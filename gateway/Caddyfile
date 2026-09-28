@@ -23,4 +23,5 @@
     }
 }
 
-
+# Optional host-specific sites, mounted by a local compose override.
+import /etc/caddy/sites/*.caddy

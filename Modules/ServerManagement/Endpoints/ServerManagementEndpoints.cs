@@ -40,6 +40,12 @@ public static class ServerManagementEndpoints
         CancellationToken cancellationToken) =>
         await TranslateAsync(() => service.GetMetricsAsync(serverId, cancellationToken));
 
+    public static async Task<IResult> ConnectionsAsync(
+        string serverId,
+        IServerManagementService service,
+        CancellationToken cancellationToken) =>
+        await TranslateAsync(() => service.GetConnectionsAsync(serverId, cancellationToken));
+
     public static async Task<IResult> LogsAsync(
         string serverId,
         IServerManagementService service,
@@ -96,6 +102,10 @@ public static class ServerManagementEndpoints
         catch (InvalidServerMetricsException exception)
         {
             throw new HttpException(StatusCodes.Status502BadGateway, "Invalid server metrics", exception.Message);
+        }
+        catch (InvalidServerConnectionsException exception)
+        {
+            throw new HttpException(StatusCodes.Status502BadGateway, "Invalid server connections", exception.Message);
         }
     }
 

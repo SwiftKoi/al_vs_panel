@@ -279,6 +279,10 @@ public sealed class AutomationApiEndpointTests
             string serverId,
             CancellationToken cancellationToken) => throw new NotSupportedException();
 
+        public Task<ServerConnectionsResponse> GetConnectionsAsync(
+            string serverId,
+            CancellationToken cancellationToken) => throw new NotSupportedException();
+
         public Task<IAsyncEnumerable<ServerLogEvent>> OpenLogStreamAsync(
             string serverId,
             CancellationToken cancellationToken) => throw new NotSupportedException();

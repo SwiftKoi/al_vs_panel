@@ -8,6 +8,7 @@ import LoginPage from "@/pages/LoginPage";
 import ServerPage from "@/pages/ServerPage";
 import FileManagerPage from "@/pages/FileManagerPage";
 import EditorPage from "@/pages/EditorPage";
+import AnalyticsPage from "@/pages/AnalyticsPage";
 import LogsPage from "@/pages/LogsPage";
 import SettingsPage from "@/pages/SettingsPage";
 import { ServerProvider } from "@/context/ServerContext";
@@ -21,6 +22,7 @@ function AuthenticatedApp({ onLogout }: { onLogout: () => void }) {
           <Route path="/server" element={<ServerPage />} />
           <Route path="/files" element={<FileManagerPage />} />
           <Route path="/editor" element={<EditorPage />} />
+          <Route path="/analytics" element={<AnalyticsPage />} />
           <Route path="/logs" element={<LogsPage />} />
           <Route path="/settings" element={<SettingsPage />} />
           <Route path="*" element={<Navigate to="/" replace />} />

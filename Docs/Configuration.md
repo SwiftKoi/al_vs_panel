@@ -70,7 +70,9 @@ Execution targets are configured under `Remote:Targets`. A target owns its `Mode
 
 Remote operation definitions are configured under `Remote:Commands`. Each definition references a named `Target` and contains one executable `Command`, optional trusted fixed `Arguments`, and an optional local/remote `User`. Dynamic arguments are appended separately by trusted module code. Do not configure a shell pipeline or compound shell expression as `Command` when the operation accepts dynamic arguments.
 
-Server profiles are configured under `Servers:Instances`. Each profile exposes safe metadata (`Id`, `Name`, `Host`, `Port`, and `Location`) and references allowlisted RemoteOperations names through `StartOperation`, `StopOperation`, `RestartOperation`, `StatusOperation`, `ConsoleOperation`, `LogsOperation`, and `MetricsOperation`. Browser input never supplies operation names, executable paths, SSH targets, Compose projects, or service names.
+Analytics is configured under `Analytics` (database path, sampling and import intervals, retention, day-bucketing time zone, per-server `PlayerEventsOperation`, and `ProxyAddresses`). Proxy addresses are deployment-specific and should be set with `Analytics__ProxyAddresses__N` environment overrides. See [`Modules/Analytics/README.md`](../Modules/Analytics/README.md).
+
+Server profiles are configured under `Servers:Instances`. Each profile exposes safe metadata (`Id`, `Name`, `Host`, `Port`, and `Location`) and references allowlisted RemoteOperations names through `StartOperation`, `StopOperation`, `RestartOperation`, `StatusOperation`, `ConsoleOperation`, `LogsOperation`, and `MetricsOperation`, plus an optional `ConnectionsOperation` for per-client connection diagnostics (the endpoint returns 503 when it is not configured). Browser input never supplies operation names, executable paths, SSH targets, Compose projects, or service names.
 
 `Servers:MaximumCommandLength` limits game-console commands and defaults to 512 characters. Server IDs must be non-empty and unique. An empty instance list is valid and makes the list endpoint return no configured servers.
 

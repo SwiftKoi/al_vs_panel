@@ -100,6 +100,53 @@ public sealed class ServerManagementServiceTests
     }
 
     [Fact]
+    public async Task Connections_map_json_and_list_named_players_first()
+    {
+        var remote = new FakeRemoteOperations();
+        remote.Results["connections-op"] = Success("""
+            {"connections":[
+             {"remoteAddress":"203.0.113.9","remotePort":5000,"localPort":42420,"playerName":null,"joinCount":0,
+              "rttMs":40.5,"rttVarianceMs":3.1,"minRttMs":30,"retransmitPercent":0,"retransmitsTotal":0,
+              "unackedSegments":0,"receiveQueueBytes":0,"sendQueueBytes":0,"bytesSent":10,"bytesReceived":5,
+              "lastReceiveMs":12,"lastSendMs":8},
+             {"remoteAddress":"198.51.100.7","remotePort":6000,"localPort":42420,"playerName":"Zed","joinCount":3,
+              "rttMs":120.2,"rttVarianceMs":20.4,"minRttMs":90,"retransmitPercent":8.25,"retransmitsTotal":755,
+              "unackedSegments":2,"receiveQueueBytes":0,"sendQueueBytes":222,"bytesSent":12627088,"bytesReceived":80932,
+              "lastReceiveMs":56,"lastSendMs":8}]}
+            """);
+        var service = CreateService(remote: remote);
+
+        var result = await service.GetConnectionsAsync("main", CancellationToken.None);
+
+        Assert.Equal(["Zed", null], result.Connections.Select(connection => connection.PlayerName));
+        Assert.Equal(8.25m, result.Connections[0].RetransmitPercent);
+        Assert.Equal(12627088, result.Connections[0].BytesSent);
+    }
+
+    [Theory]
+    [InlineData("not json")]
+    [InlineData("{}")]
+    [InlineData("""{"connections":[{"remoteAddress":""}]}""")]
+    public async Task Connections_reject_invalid_operation_output(string output)
+    {
+        var remote = new FakeRemoteOperations();
+        remote.Results["connections-op"] = Success(output);
+        var service = CreateService(remote: remote);
+
+        await Assert.ThrowsAsync<InvalidServerConnectionsException>(() =>
+            service.GetConnectionsAsync("main", CancellationToken.None));
+    }
+
+    [Fact]
+    public async Task Connections_require_configured_operation()
+    {
+        var service = CreateService(server: Server with { ConnectionsOperation = "" });
+
+        await Assert.ThrowsAsync<ServerUnavailableException>(() =>
+            service.GetConnectionsAsync("main", CancellationToken.None));
+    }
+
+    [Fact]
     public async Task Logs_map_stdout_and_do_not_expose_stderr()
     {
         var remote = new FakeRemoteOperations
@@ -127,8 +174,9 @@ public sealed class ServerManagementServiceTests
 
     private static ServerManagementService CreateService(
         FakeRemoteOperations? remote = null,
-        IServerLifecycleOperationGuard? guard = null) => new(
-        new FakeServerRepository(Server),
+        IServerLifecycleOperationGuard? guard = null,
+        ServerDefinition? server = null) => new(
+        new FakeServerRepository(server ?? Server),
         remote ?? new FakeRemoteOperations(),
         guard ?? new ServerLifecycleOperationGuard(),
         Options.Create(new ServerManagementOptions { MaximumCommandLength = 512 }),
@@ -138,7 +186,8 @@ public sealed class ServerManagementServiceTests
 
     private static readonly ServerDefinition Server = new(
         "main", "Main", "localhost", 42420, "Local",
-        "start-op", "stop-op", "restart-op", "status-op", "console-op", "logs-op", "metrics-op");
+        "start-op", "stop-op", "restart-op", "status-op", "console-op", "logs-op", "metrics-op",
+        "connections-op");
 
     private sealed class FakeServerRepository(params ServerDefinition[] servers) : IServerRepository
     {

@@ -34,6 +34,31 @@ export interface ServerMetricsResponse {
   diskPercent: number;
 }
 
+export interface ServerClientConnection {
+  remoteAddress: string;
+  remotePort: number;
+  localPort: number;
+  playerName: string | null;
+  joinCount: number;
+  rttMs: number;
+  rttVarianceMs: number;
+  minRttMs: number;
+  retransmitPercent: number;
+  retransmitsTotal: number;
+  unackedSegments: number;
+  receiveQueueBytes: number;
+  sendQueueBytes: number;
+  bytesSent: number;
+  bytesReceived: number;
+  lastReceiveMs: number;
+  lastSendMs: number;
+}
+
+export interface ServerConnectionsResponse {
+  serverId: string;
+  connections: ServerClientConnection[];
+}
+
 export type ServerLogEvent =
   | { kind: "line"; data: string }
   | { kind: "error"; data: string }
@@ -73,6 +98,8 @@ export const serverApi = {
       body: JSON.stringify({ command })
     }),
   metrics: (serverId: string) => apiRequest<ServerMetricsResponse>(serverPath(serverId, "metrics")),
+  connections: (serverId: string) =>
+    apiRequest<ServerConnectionsResponse>(serverPath(serverId, "connections")),
   openLogs(serverId: string, options: OpenServerLogsOptions): () => void {
     const source = new EventSource(serverPath(serverId, "logs"), { withCredentials: true });
     source.onopen = () => options.onConnected();

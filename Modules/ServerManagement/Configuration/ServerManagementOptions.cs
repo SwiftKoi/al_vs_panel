@@ -22,4 +22,5 @@ public sealed class ServerInstanceConfig
     public string ConsoleOperation { get; set; } = string.Empty;
     public string LogsOperation { get; set; } = string.Empty;
     public string MetricsOperation { get; set; } = string.Empty;
+    public string ConnectionsOperation { get; set; } = string.Empty;
 }

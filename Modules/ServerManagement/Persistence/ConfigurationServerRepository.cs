@@ -35,5 +35,6 @@ public sealed class ConfigurationServerRepository(IOptions<ServerManagementOptio
         config.StatusOperation,
         config.ConsoleOperation,
         config.LogsOperation,
-        config.MetricsOperation);
+        config.MetricsOperation,
+        config.ConnectionsOperation);
 }

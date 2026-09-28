@@ -12,6 +12,7 @@ public static class ServerManagementRoutes
         group.MapGet("/", ServerManagementEndpoints.ListAsync);
         group.MapGet("/{serverId}/status", ServerManagementEndpoints.StatusAsync);
         group.MapGet("/{serverId}/metrics", ServerManagementEndpoints.MetricsAsync);
+        group.MapGet("/{serverId}/connections", ServerManagementEndpoints.ConnectionsAsync);
         group.MapGet("/{serverId}/logs", ServerManagementEndpoints.LogsAsync);
         group.MapPost("/{serverId}/start", (string serverId, Services.IServerManagementService service, CancellationToken token) =>
                 ServerManagementEndpoints.LifecycleAsync(serverId, ServerLifecycleAction.Start, service, token))

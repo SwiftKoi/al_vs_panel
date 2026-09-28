@@ -44,6 +44,7 @@ public sealed class ServerManagementEndpointTests
     [InlineData(Failure.Unavailable, StatusCodes.Status503ServiceUnavailable)]
     [InlineData(Failure.Operation, StatusCodes.Status502BadGateway)]
     [InlineData(Failure.Metrics, StatusCodes.Status502BadGateway)]
+    [InlineData(Failure.Connections, StatusCodes.Status502BadGateway)]
     public async Task Status_translates_domain_failures(Failure failure, int expectedStatus)
     {
         var exception = await Assert.ThrowsAsync<HttpException>(() =>
@@ -71,7 +72,8 @@ public sealed class ServerManagementEndpointTests
         Conflict,
         Unavailable,
         Operation,
-        Metrics
+        Metrics,
+        Connections
     }
 
     private sealed class FakeService : IServerManagementService
@@ -116,6 +118,12 @@ public sealed class ServerManagementEndpointTests
                 serverId, 0, "", "", 0, "", "", 0, 0, 0, 0));
         }
 
+        public Task<ServerConnectionsResponse> GetConnectionsAsync(string serverId, CancellationToken cancellationToken)
+        {
+            ThrowIfRequested(serverId);
+            return Task.FromResult(new ServerConnectionsResponse(serverId, []));
+        }
+
         public Task<IAsyncEnumerable<ServerLogEvent>> OpenLogStreamAsync(
             string serverId,
             CancellationToken cancellationToken)
@@ -139,6 +147,7 @@ public sealed class ServerManagementEndpointTests
                 Failure.Unavailable => new ServerUnavailableException("unavailable"),
                 Failure.Operation => new ServerOperationFailedException("operation"),
                 Failure.Metrics => new InvalidServerMetricsException(),
+                Failure.Connections => new InvalidServerConnectionsException(),
                 _ => new ArgumentOutOfRangeException()
             };
         }

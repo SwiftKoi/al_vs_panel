@@ -50,6 +50,29 @@ public sealed record ServerMetricsResponse(
     long DiskAvailableBytes,
     decimal DiskPercent);
 
+public sealed record ServerConnectionsResponse(
+    string ServerId,
+    IReadOnlyList<ServerClientConnection> Connections);
+
+public sealed record ServerClientConnection(
+    string RemoteAddress,
+    int RemotePort,
+    int LocalPort,
+    string? PlayerName,
+    int JoinCount,
+    decimal RttMs,
+    decimal RttVarianceMs,
+    decimal MinRttMs,
+    decimal RetransmitPercent,
+    long RetransmitsTotal,
+    int UnackedSegments,
+    long ReceiveQueueBytes,
+    long SendQueueBytes,
+    long BytesSent,
+    long BytesReceived,
+    long LastReceiveMs,
+    long LastSendMs);
+
 public enum ServerLogEventKind
 {
     Line,

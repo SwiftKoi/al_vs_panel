@@ -12,4 +12,5 @@ public sealed record ServerDefinition(
     string StatusOperation,
     string ConsoleOperation,
     string LogsOperation,
-    string MetricsOperation);
+    string MetricsOperation,
+    string ConnectionsOperation = "");
