@@ -76,7 +76,7 @@ export default function EditorPage() {
         .then((res) => {
           setTabs((prev) => {
             const updated = prev.map((t) =>
-              t.id === tab.id ? { ...t, content: res.content, isSaved: true } : t
+              t.id === tab.id ? { ...t, content: res.content, modified: res.modified, isSaved: true } : t
             );
             saveStoredTabs(updated);
             return updated;
@@ -150,11 +150,11 @@ export default function EditorPage() {
     }
     setIsSaving(true);
     setError(null);
-    filesApi.saveContent(activeTab.serverId, activeTab.rootId, activeTab.path, activeTab.content)
-      .then(() => {
+    filesApi.saveContent(activeTab.serverId, activeTab.rootId, activeTab.path, activeTab.content, activeTab.modified)
+      .then((res) => {
         setTabs((prev) => {
           const updated = prev.map((tab) =>
-            tab.id === activeTab.id ? { ...tab, isSaved: true } : tab
+            tab.id === activeTab.id ? { ...tab, isSaved: true, modified: res.modified } : tab
           );
           saveStoredTabs(updated);
           return updated;

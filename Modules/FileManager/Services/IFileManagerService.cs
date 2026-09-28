@@ -4,6 +4,15 @@ namespace AlegacyWebPanel.Modules.FileManager.Services;
 
 public interface IFileManagerService
 {
+    IReadOnlyList<FileRootDto> GetRoots(string serverId);
+
+    /// <summary>Metadata of a file; throws when it is missing or a folder. Call before streaming a download.</summary>
+    Task<FileEntryDto> GetFileInfoAsync(
+        string serverId,
+        string rootId,
+        string relativePath,
+        CancellationToken cancellationToken);
+
     Task<DirectoryListingDto> GetDirectoryListingAsync(
         string serverId,
         string rootId,
@@ -35,6 +44,7 @@ public interface IFileManagerService
         string rootId,
         string relativePath,
         string content,
+        DateTimeOffset? expectedModified,
         CancellationToken cancellationToken);
 
     Task CreateDirectoryAsync(
@@ -66,7 +76,7 @@ public interface IFileManagerService
     Task<string> ArchiveAsync(
         string serverId,
         string rootId,
-        string relativePath,
+        IReadOnlyList<string> sourcePaths,
         string zipPath,
         CancellationToken cancellationToken);
 

@@ -144,6 +144,9 @@ export const en = {
     newFile: "New File",
     editorTitle: "Code Editor",
     dropToUpload: "Drop to upload…",
+    taskLost: "status unknown — the panel may have restarted. Refresh to check the result.",
+    listingTruncated: "This folder has more entries than the listing limit; only the first {{count}} are shown.",
+    listingSkipped: "{{count}} entries are hidden because they cannot be read or point outside this root.",
     cannotMoveIntoItself: "Cannot move an item into itself or one of its subdirectories.",
     modals: {
       cancel: "Cancel",

@@ -3,6 +3,7 @@ using AlegacyWebPanel.Modules.FileManager.Persistence;
 using AlegacyWebPanel.Modules.FileManager.Services;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.Options;
 
 namespace AlegacyWebPanel.Modules.FileManager.Infrastructure;
 
@@ -18,7 +19,9 @@ public static class FileManagerModule
             .Validate(options => options.MaximumTextFileSizeBytes > 0, "MaximumTextFileSizeBytes must be positive.")
             .Validate(options => options.MaximumArchiveSizeBytes > 0, "MaximumArchiveSizeBytes must be positive.")
             .Validate(options => options.MaximumListingEntries > 0, "MaximumListingEntries must be positive.")
+            .Validate(options => options.MaximumArchiveEntries > 0, "MaximumArchiveEntries must be positive.")
             .Validate(options => options.MaximumConcurrentOperations > 0, "MaximumConcurrentOperations must be positive.")
+            .Validate(options => options.OperationTimeoutMinutes > 0, "OperationTimeoutMinutes must be positive.")
             .Validate(options => options.Instances != null, "Instances configuration is missing.")
             .Validate(options => 
             {
@@ -54,7 +57,8 @@ public static class FileManagerModule
         });
 
 
-        services.AddSingleton<IBackgroundOperationTracker, BackgroundOperationTracker>();
+        services.AddSingleton<IBackgroundOperationTracker>(provider =>
+            new BackgroundOperationTracker(provider.GetRequiredService<IOptions<FileManagerOptions>>()));
         services.AddScoped<IFileRepository, RemoteFileRepository>();
         services.AddScoped<IFileManagerService, FileManagerService>();
         return services;

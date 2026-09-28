@@ -17,10 +17,15 @@ export interface DirectoryListingDto {
   currentPath: string;
   roots: FileRootDto[];
   entries: FileEntryDto[];
+  /** More entries exist than the server's listing limit; only the first ones are shown. */
+  truncated: boolean;
+  /** Entries hidden because they could not be read or point outside the root. */
+  skipped: number;
 }
 
 export interface FileContentDto {
   content: string;
+  modified: string;
 }
 
 export interface TrackedOperationDto {
@@ -38,6 +43,9 @@ function filesPath(serverId: string, root: string, suffix?: string) {
 }
 
 export const filesApi = {
+  roots: (serverId: string) =>
+    apiRequest<FileRootDto[]>(`/api/servers/${encodeURIComponent(serverId)}/files`),
+
   list: (serverId: string, root: string, path: string) =>
     apiRequest<DirectoryListingDto>(
       `${filesPath(serverId, root)}?path=${encodeURIComponent(path)}`
@@ -48,12 +56,13 @@ export const filesApi = {
       `${filesPath(serverId, root, "content")}?path=${encodeURIComponent(path)}`
     ),
 
-  saveContent: (serverId: string, root: string, path: string, content: string) =>
-    apiRequest<void>(
+  /** Pass the `modified` value from getContent so the save is refused if the file changed meanwhile. */
+  saveContent: (serverId: string, root: string, path: string, content: string, expectedModified?: string) =>
+    apiRequest<{ modified: string }>(
       filesPath(serverId, root, "content"),
       {
         method: "PUT",
-        body: JSON.stringify({ path, content })
+        body: JSON.stringify({ path, content, expectedModified })
       }
     ),
 
@@ -104,12 +113,12 @@ export const filesApi = {
       }
     ),
 
-  compress: (serverId: string, root: string, sourcePath: string, destinationZipPath: string) =>
+  compress: (serverId: string, root: string, sourcePaths: string[], destinationZipPath: string) =>
     apiRequest<{ taskId: string }>(
       filesPath(serverId, root, "compress"),
       {
         method: "POST",
-        body: JSON.stringify({ sourcePath, destinationZipPath })
+        body: JSON.stringify({ sourcePaths, destinationZipPath })
       }
     ),
 

@@ -334,6 +334,27 @@ public sealed class AutomationApiEndpointTests
 
         public string? UploadedContent { get; private set; }
 
+        public IReadOnlyList<FileRootDto> GetRoots(string serverId) => throw new NotSupportedException();
+
+        public Task<FileEntryDto> GetFileInfoAsync(
+            string serverId,
+            string rootId,
+            string relativePath,
+            CancellationToken cancellationToken)
+        {
+            ThrowIfRequested();
+            Record(serverId, rootId, relativePath);
+            var name = relativePath[(relativePath.LastIndexOf('/') + 1)..];
+            var entry = Entries.FirstOrDefault(e => e.Name == name)
+                ?? throw new FileNotFoundException($"File '{relativePath}' was not found.");
+            if (entry.IsFolder)
+            {
+                throw new InvalidFileOperationException($"'{relativePath}' is a folder, not a file.");
+            }
+
+            return Task.FromResult(entry);
+        }
+
         public Task<DirectoryListingDto> GetDirectoryListingAsync(
             string serverId,
             string rootId,
@@ -381,6 +402,7 @@ public sealed class AutomationApiEndpointTests
             string rootId,
             string relativePath,
             string content,
+            DateTimeOffset? expectedModified,
             CancellationToken cancellationToken) => throw new NotSupportedException();
 
         public Task CreateDirectoryAsync(
@@ -412,7 +434,7 @@ public sealed class AutomationApiEndpointTests
         public Task<string> ArchiveAsync(
             string serverId,
             string rootId,
-            string relativePath,
+            IReadOnlyList<string> sourcePaths,
             string zipPath,
             CancellationToken cancellationToken) => throw new NotSupportedException();
 

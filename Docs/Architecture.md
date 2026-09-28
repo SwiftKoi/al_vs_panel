@@ -74,7 +74,7 @@ HTTP request -> ServerManagement endpoint -> ServerManagement service
 
 ### FileManager
 
-Owns remote file management capabilities including directory listings, file downloading and uploading, text editor content loading and saving, basic mutations (mkdir, rename, move, delete), and long-running background tasks (zip compression and unzip extraction) with in-memory task status monitoring. It communicates using `IRemoteOperationsService` to execute the python-based `file-manager.py` target-side helper. It applies path containment validation, NUL-byte binary checking, and entry-level zip-slip filters for system security.
+Owns remote file management capabilities including directory listings, file downloading and uploading, text editor content loading and saving, basic mutations (mkdir, rename, move, delete), and long-running background tasks (zip compression and unzip extraction) with in-memory task status monitoring. It communicates using `IRemoteOperationsService` to execute the python-based `file-manager.py` target-side helper. It applies path containment validation, NUL-byte binary checking, and entry-level zip-slip filters for system security. The helper writes uploads atomically (temp file + rename), acts on symlinks themselves rather than their targets for delete/rename/move, never overwrites on move/rename/mkdir/zip/unzip (409 instead), and validates archives fully before writing anything. Downloads are validated before streaming starts. The text editor only opens valid UTF-8 (a BOM round-trips unchanged) and refuses to save over a file that changed after it was opened.
 
 ### AutomationApi
 

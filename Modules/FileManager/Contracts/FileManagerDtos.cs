@@ -14,10 +14,13 @@ public sealed record FileEntryDto(
 public sealed record DirectoryListingDto(
     string CurrentPath,
     IReadOnlyList<FileRootDto> Roots,
-    IReadOnlyList<FileEntryDto> Entries);
+    IReadOnlyList<FileEntryDto> Entries,
+    bool Truncated = false,
+    int Skipped = 0);
 
 public sealed record FileContentDto(
-    string Content);
+    string Content,
+    DateTimeOffset Modified);
 
 public sealed record TrackedOperationDto(
     string TaskId,

@@ -15,7 +15,21 @@ public sealed class FileManagerService(
     ILogger<FileManagerService> logger)
     : IFileManagerService
 {
+    // Strict decoder: invalid bytes throw instead of silently becoming U+FFFD,
+    // which would then be written back on save and corrupt the file.
+    private static readonly UTF8Encoding StrictUtf8 = new(encoderShouldEmitUTF8Identifier: false, throwOnInvalidBytes: true);
+
     private readonly FileManagerOptions _options = options.Value;
+
+    public IReadOnlyList<FileRootDto> GetRoots(string serverId)
+    {
+        if (!_options.Instances.TryGetValue(serverId, out var instance))
+        {
+            throw new InstanceNotFoundException(serverId);
+        }
+
+        return RootsOf(instance);
+    }
 
     public async Task<DirectoryListingDto> GetDirectoryListingAsync(
         string serverId,
@@ -23,29 +37,33 @@ public sealed class FileManagerService(
         string relativePath,
         CancellationToken cancellationToken)
     {
-        if (!_options.Instances.TryGetValue(serverId, out var instance))
-        {
-            throw new InstanceNotFoundException(serverId);
-        }
-
-        if (!instance.Roots.TryGetValue(rootId, out var root))
-        {
-            throw new RootNotFoundException(rootId);
-        }
-
+        var (instance, root) = ResolveRoot(serverId, rootId);
         ValidateRelativePath(relativePath);
 
-        // Fetch directory entries from target
         logger.LogDebug("Listing files for server {ServerId} root {RootId}", serverId, rootId);
-        var entries = await fileRepository.ListAsync(root.Operation, relativePath, cancellationToken);
+        var listing = await fileRepository.ListAsync(
+            root.Operation, relativePath, _options.MaximumListingEntries, cancellationToken);
 
-        // Build list of all roots configured for this server instance
-        var rootsList = instance.Roots.Select(r => new FileRootDto(
-            r.Key,
-            r.Value.DisplayName,
-            r.Value.IsWritable)).ToList();
+        return new DirectoryListingDto(relativePath, RootsOf(instance), listing.Entries, listing.Truncated, listing.Skipped);
+    }
 
-        return new DirectoryListingDto(relativePath, rootsList, entries);
+    public async Task<FileEntryDto> GetFileInfoAsync(
+        string serverId,
+        string rootId,
+        string relativePath,
+        CancellationToken cancellationToken)
+    {
+        var (_, root) = ResolveRoot(serverId, rootId);
+        ValidateRelativePath(relativePath);
+
+        var entry = await fileRepository.StatAsync(root.Operation, relativePath, cancellationToken)
+            ?? throw new FileNotFoundException($"File '{relativePath}' was not found.");
+        if (entry.IsFolder)
+        {
+            throw new InvalidFileOperationException($"'{relativePath}' is a folder, not a file.");
+        }
+
+        return entry;
     }
 
     public async Task DownloadFileAsync(
@@ -55,16 +73,7 @@ public sealed class FileManagerService(
         Stream destination,
         CancellationToken cancellationToken)
     {
-        if (!_options.Instances.TryGetValue(serverId, out var instance))
-        {
-            throw new InstanceNotFoundException(serverId);
-        }
-
-        if (!instance.Roots.TryGetValue(rootId, out var root))
-        {
-            throw new RootNotFoundException(rootId);
-        }
-
+        var (_, root) = ResolveRoot(serverId, rootId);
         ValidateRelativePath(relativePath);
 
         logger.LogDebug("Downloading file for server {ServerId} root {RootId}", serverId, rootId);
@@ -78,21 +87,7 @@ public sealed class FileManagerService(
         Stream source,
         CancellationToken cancellationToken)
     {
-        if (!_options.Instances.TryGetValue(serverId, out var instance))
-        {
-            throw new InstanceNotFoundException(serverId);
-        }
-
-        if (!instance.Roots.TryGetValue(rootId, out var root))
-        {
-            throw new RootNotFoundException(rootId);
-        }
-
-        if (!root.IsWritable)
-        {
-            throw new PermissionDeniedException($"The root '{rootId}' is read-only.");
-        }
-
+        var root = ResolveWritableRoot(serverId, rootId);
         ValidateRelativePath(relativePath);
 
         // Wrap stream to enforce limit
@@ -108,31 +103,11 @@ public sealed class FileManagerService(
         string relativePath,
         CancellationToken cancellationToken)
     {
-        if (!_options.Instances.TryGetValue(serverId, out var instance))
-        {
-            throw new InstanceNotFoundException(serverId);
-        }
-
-        if (!instance.Roots.TryGetValue(rootId, out var root))
-        {
-            throw new RootNotFoundException(rootId);
-        }
-
+        var (_, root) = ResolveRoot(serverId, rootId);
         ValidateRelativePath(relativePath);
 
-        // Resolve parent directory and file name to check file metadata
-        var parentPath = string.Empty;
-        var fileName = relativePath;
-        var lastSlash = relativePath.Replace('\\', '/').LastIndexOf('/');
-        if (lastSlash != -1)
-        {
-            parentPath = relativePath[..lastSlash];
-            fileName = relativePath[(lastSlash + 1)..];
-        }
-
-        var listing = await fileRepository.ListAsync(root.Operation, parentPath, cancellationToken);
-        var fileEntry = listing.FirstOrDefault(e => !e.IsFolder && e.Name.Equals(fileName, StringComparison.OrdinalIgnoreCase));
-        if (fileEntry == null)
+        var fileEntry = await fileRepository.StatAsync(root.Operation, relativePath, cancellationToken);
+        if (fileEntry is null || fileEntry.IsFolder)
         {
             throw new FileNotFoundException($"File '{relativePath}' was not found.");
         }
@@ -144,23 +119,31 @@ public sealed class FileManagerService(
 
         using var ms = new MemoryStream();
         await fileRepository.ReadAsync(root.Operation, relativePath, ms, cancellationToken);
-        
-        ms.Position = 0;
-        var buffer = new byte[Math.Min(8192, ms.Length)];
-        var read = await ms.ReadAsync(buffer, cancellationToken);
-        for (int i = 0; i < read; i++)
+        if (ms.Length > _options.MaximumTextFileSizeBytes)
         {
-            if (buffer[i] == 0)
-            {
-                throw new UnsupportedFileException("The file appears to be a binary file and cannot be opened in the text editor.");
-            }
+            // The file grew between the size check and the read.
+            throw new FileTooLargeException($"File size exceeds the limit of {_options.MaximumTextFileSizeBytes} bytes for text editing.");
         }
 
-        ms.Position = 0;
-        using var reader = new StreamReader(ms, Encoding.UTF8);
-        var content = await reader.ReadToEndAsync(cancellationToken);
+        var bytes = ms.GetBuffer().AsSpan(0, (int)ms.Length);
+        if (bytes.Contains((byte)0))
+        {
+            throw new UnsupportedFileException("The file appears to be a binary file and cannot be opened in the text editor.");
+        }
 
-        return new FileContentDto(content);
+        string content;
+        try
+        {
+            // GetString keeps a leading BOM as U+FEFF, and saving encodes it back to
+            // the same three bytes, so files with and without a BOM round-trip unchanged.
+            content = StrictUtf8.GetString(bytes);
+        }
+        catch (DecoderFallbackException)
+        {
+            throw new UnsupportedFileException("The file is not valid UTF-8 text and cannot be edited without corrupting it.");
+        }
+
+        return new FileContentDto(content, fileEntry.Modified);
     }
 
     public async Task SaveTextContentAsync(
@@ -168,29 +151,28 @@ public sealed class FileManagerService(
         string rootId,
         string relativePath,
         string content,
+        DateTimeOffset? expectedModified,
         CancellationToken cancellationToken)
     {
-        if (!_options.Instances.TryGetValue(serverId, out var instance))
-        {
-            throw new InstanceNotFoundException(serverId);
-        }
-
-        if (!instance.Roots.TryGetValue(rootId, out var root))
-        {
-            throw new RootNotFoundException(rootId);
-        }
-
-        if (!root.IsWritable)
-        {
-            throw new PermissionDeniedException($"The root '{rootId}' is read-only.");
-        }
-
+        var root = ResolveWritableRoot(serverId, rootId);
         ValidateRelativePath(relativePath);
 
         var bytes = Encoding.UTF8.GetBytes(content);
         if (bytes.Length > _options.MaximumTextFileSizeBytes)
         {
             throw new FileTooLargeException($"Content size exceeds the limit of {_options.MaximumTextFileSizeBytes} bytes.");
+        }
+
+        if (expectedModified is { } expected)
+        {
+            // Refuse to overwrite a file someone (often the game server itself) changed
+            // after it was opened in the editor.
+            var current = await fileRepository.StatAsync(root.Operation, relativePath, cancellationToken);
+            if (current is not null && current.Modified != expected)
+            {
+                throw new FileChangedException(
+                    $"'{relativePath}' was changed on the server after it was opened (at {current.Modified:u}). Reload it before saving.");
+            }
         }
 
         using var ms = new MemoryStream(bytes);
@@ -204,21 +186,7 @@ public sealed class FileManagerService(
         string relativePath,
         CancellationToken cancellationToken)
     {
-        if (!_options.Instances.TryGetValue(serverId, out var instance))
-        {
-            throw new InstanceNotFoundException(serverId);
-        }
-
-        if (!instance.Roots.TryGetValue(rootId, out var root))
-        {
-            throw new RootNotFoundException(rootId);
-        }
-
-        if (!root.IsWritable)
-        {
-            throw new PermissionDeniedException($"The root '{rootId}' is read-only.");
-        }
-
+        var root = ResolveWritableRoot(serverId, rootId);
         ValidateRelativePath(relativePath);
 
         logger.LogInformation("Creating directory for server {ServerId} root {RootId}", serverId, rootId);
@@ -232,21 +200,7 @@ public sealed class FileManagerService(
         string newName,
         CancellationToken cancellationToken)
     {
-        if (!_options.Instances.TryGetValue(serverId, out var instance))
-        {
-            throw new InstanceNotFoundException(serverId);
-        }
-
-        if (!instance.Roots.TryGetValue(rootId, out var root))
-        {
-            throw new RootNotFoundException(rootId);
-        }
-
-        if (!root.IsWritable)
-        {
-            throw new PermissionDeniedException($"The root '{rootId}' is read-only.");
-        }
-
+        var root = ResolveWritableRoot(serverId, rootId);
         ValidateRelativePath(relativePath);
 
         if (string.IsNullOrEmpty(newName) || newName.Contains('/') || newName.Contains('\\') || newName.Contains('\0') || newName.Any(char.IsControl) || newName == ".." || newName == ".")
@@ -265,21 +219,7 @@ public sealed class FileManagerService(
         string destinationPath,
         CancellationToken cancellationToken)
     {
-        if (!_options.Instances.TryGetValue(serverId, out var instance))
-        {
-            throw new InstanceNotFoundException(serverId);
-        }
-
-        if (!instance.Roots.TryGetValue(rootId, out var root))
-        {
-            throw new RootNotFoundException(rootId);
-        }
-
-        if (!root.IsWritable)
-        {
-            throw new PermissionDeniedException($"The root '{rootId}' is read-only.");
-        }
-
+        var root = ResolveWritableRoot(serverId, rootId);
         ValidateRelativePath(sourcePath);
         ValidateRelativePath(destinationPath);
 
@@ -293,21 +233,7 @@ public sealed class FileManagerService(
         string relativePath,
         CancellationToken cancellationToken)
     {
-        if (!_options.Instances.TryGetValue(serverId, out var instance))
-        {
-            throw new InstanceNotFoundException(serverId);
-        }
-
-        if (!instance.Roots.TryGetValue(rootId, out var root))
-        {
-            throw new RootNotFoundException(rootId);
-        }
-
-        if (!root.IsWritable)
-        {
-            throw new PermissionDeniedException($"The root '{rootId}' is read-only.");
-        }
-
+        var root = ResolveWritableRoot(serverId, rootId);
         ValidateRelativePath(relativePath);
 
         logger.LogInformation("Deleting item for server {ServerId} root {RootId}", serverId, rootId);
@@ -317,38 +243,32 @@ public sealed class FileManagerService(
     public Task<string> ArchiveAsync(
         string serverId,
         string rootId,
-        string relativePath,
+        IReadOnlyList<string> sourcePaths,
         string zipPath,
         CancellationToken cancellationToken)
     {
-        if (!_options.Instances.TryGetValue(serverId, out var instance))
+        var root = ResolveWritableRoot(serverId, rootId);
+
+        var sources = sourcePaths.Where(path => !string.IsNullOrWhiteSpace(path)).ToList();
+        if (sources.Count == 0)
         {
-            throw new InstanceNotFoundException(serverId);
+            throw new InvalidRelativePathException("At least one source path is required.");
         }
 
-        if (!instance.Roots.TryGetValue(rootId, out var root))
+        foreach (var path in sources)
         {
-            throw new RootNotFoundException(rootId);
-        }
-
-        if (!root.IsWritable)
-        {
-            throw new PermissionDeniedException($"The root '{rootId}' is read-only.");
-        }
-
-        foreach (var path in relativePath.Split(';'))
-        {
-            if (!string.IsNullOrEmpty(path))
-            {
-                ValidateRelativePath(path);
-            }
+            ValidateRelativePath(path);
         }
         ValidateRelativePath(zipPath);
 
+        var description = sources.Count == 1
+            ? $"Compressing '{sources[0]}' to '{zipPath}' in root '{rootId}'"
+            : $"Compressing {sources.Count} items to '{zipPath}' in root '{rootId}'";
+
         logger.LogInformation("Starting compression for server {ServerId} root {RootId}", serverId, rootId);
         var taskId = backgroundOperationTracker.StartTracking(
-            $"Compressing '{relativePath}' to '{zipPath}' in root '{rootId}'",
-            ct => fileRepository.ArchiveAsync(root.Operation, relativePath, zipPath, ct));
+            description,
+            ct => fileRepository.ArchiveAsync(root.Operation, sources, zipPath, ct));
 
         return Task.FromResult(taskId);
     }
@@ -360,6 +280,31 @@ public sealed class FileManagerService(
         string destPath,
         CancellationToken cancellationToken)
     {
+        var root = ResolveWritableRoot(serverId, rootId);
+        ValidateRelativePath(zipPath);
+        ValidateRelativePath(destPath);
+
+        logger.LogInformation("Starting extraction for server {ServerId} root {RootId}", serverId, rootId);
+        var taskId = backgroundOperationTracker.StartTracking(
+            $"Extracting '{zipPath}' to '{(destPath.Length == 0 ? "/" : destPath)}' in root '{rootId}'",
+            ct => fileRepository.ExtractAsync(
+                root.Operation,
+                zipPath,
+                destPath,
+                _options.MaximumArchiveSizeBytes,
+                _options.MaximumArchiveEntries,
+                ct));
+
+        return Task.FromResult(taskId);
+    }
+
+    public TrackedOperationDto? GetOperationStatus(string taskId)
+    {
+        return backgroundOperationTracker.GetStatus(taskId);
+    }
+
+    private (ServerInstanceRoots Instance, FileRootConfig Root) ResolveRoot(string serverId, string rootId)
+    {
         if (!_options.Instances.TryGetValue(serverId, out var instance))
         {
             throw new InstanceNotFoundException(serverId);
@@ -370,26 +315,22 @@ public sealed class FileManagerService(
             throw new RootNotFoundException(rootId);
         }
 
+        return (instance, root);
+    }
+
+    private FileRootConfig ResolveWritableRoot(string serverId, string rootId)
+    {
+        var (_, root) = ResolveRoot(serverId, rootId);
         if (!root.IsWritable)
         {
             throw new PermissionDeniedException($"The root '{rootId}' is read-only.");
         }
 
-        ValidateRelativePath(zipPath);
-        ValidateRelativePath(destPath);
-
-        logger.LogInformation("Starting extraction for server {ServerId} root {RootId}", serverId, rootId);
-        var taskId = backgroundOperationTracker.StartTracking(
-            $"Extracting '{zipPath}' to '{destPath}' in root '{rootId}'",
-            ct => fileRepository.ExtractAsync(root.Operation, zipPath, destPath, ct));
-
-        return Task.FromResult(taskId);
+        return root;
     }
 
-    public TrackedOperationDto? GetOperationStatus(string taskId)
-    {
-        return backgroundOperationTracker.GetStatus(taskId);
-    }
+    private static IReadOnlyList<FileRootDto> RootsOf(ServerInstanceRoots instance) =>
+        instance.Roots.Select(r => new FileRootDto(r.Key, r.Value.DisplayName, r.Value.IsWritable)).ToList();
 
     private static void ValidateRelativePath(string relativePath)
     {
@@ -408,7 +349,9 @@ public sealed class FileManagerService(
             throw new InvalidRelativePathException("Path traversal attempts are not permitted.");
         }
 
-        if (normalized.StartsWith('/') || normalized.StartsWith('~') || normalized.Contains(':'))
+        // Colons are legal in Linux file names (timestamped logs, crash dumps); the
+        // helper confines every path to the root regardless.
+        if (normalized.StartsWith('/') || normalized.StartsWith('~'))
         {
             throw new InvalidRelativePathException("Absolute path references are not permitted.");
         }

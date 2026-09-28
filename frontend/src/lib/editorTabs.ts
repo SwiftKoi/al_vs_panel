@@ -6,6 +6,8 @@ export interface EditorTab {
   isSaved: boolean;
   serverId?: string;
   rootId?: string;
+  /** Server-side modification time when the content was loaded; saving is refused if the file changed since. */
+  modified?: string;
 }
 
 export interface OpenEditorFile {
@@ -14,6 +16,7 @@ export interface OpenEditorFile {
   content?: string;
   serverId?: string;
   rootId?: string;
+  modified?: string;
 }
 
 export function getStoredTabs(): EditorTab[] {
@@ -54,7 +57,9 @@ export function addTabToEditor(file: OpenEditorFile) {
   if (existing) {
     if (file.content !== undefined && existing.content !== file.content) {
       const content = file.content;
-      const updated = tabs.map((t) => (t.id === existing.id ? { ...t, content, isSaved: false } : t));
+      const updated = tabs.map((t) =>
+        t.id === existing.id ? { ...t, content, isSaved: false, modified: file.modified ?? t.modified } : t
+      );
       saveStoredTabs(updated);
     }
     setActiveTabId(existing.id);
@@ -68,7 +73,8 @@ export function addTabToEditor(file: OpenEditorFile) {
     content: file.content ?? "",
     isSaved: file.content !== undefined,
     serverId: file.serverId,
-    rootId: file.rootId
+    rootId: file.rootId,
+    modified: file.modified
   };
 
   const updated = [...tabs, newTab];

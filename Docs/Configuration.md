@@ -76,6 +76,17 @@ Server profiles are configured under `Servers:Instances`. Each profile exposes s
 
 `Servers:MaximumCommandLength` limits game-console commands and defaults to 512 characters. Server IDs must be non-empty and unique. An empty instance list is valid and makes the list endpoint return no configured servers.
 
+### File manager
+
+`FileManager` limits (all validated at startup):
+
+- `MaximumFileSizeBytes` — largest upload; `MaximumTextFileSizeBytes` — largest file the text editor opens or saves.
+- `MaximumArchiveSizeBytes` / `MaximumArchiveEntries` — total uncompressed size and entry count an archive may expand to when extracted (zip-bomb guard). Extraction is also refused when the disk lacks the space or when any file would be overwritten.
+- `MaximumListingEntries` — entries returned per folder listing; larger folders are truncated and the UI says so.
+- `MaximumConcurrentOperations` — running zip/unzip jobs; further requests get 429. `OperationTimeoutMinutes` stops a job that runs longer. Finished job status is kept in memory for one hour.
+
+`Instances:<serverId>:Roots:<rootId>` maps each root to a `file-manager.py` operation. The helper reports outcomes through exit codes (see its header) that the panel maps to 400/404/409/413 responses; only unexpected failures become 502.
+
 ## Logging configuration
 
 Logging settings are under `LogStore` and are owned by the Logging module. The persisted level is independent of the console level. Defaults live in `appsettings.json`; `appsettings.Development.json` overrides the persisted level to `Debug` and shortens retention.

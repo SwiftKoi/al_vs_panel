@@ -57,22 +57,13 @@ public static class AutomationApiEndpoints
             return Results.BadRequest("Path is required.");
         }
 
-        var normalizedPath = path.Replace('\\', '/');
-        var lastSlash = normalizedPath.LastIndexOf('/');
-        var parentPath = lastSlash == -1 ? string.Empty : normalizedPath[..lastSlash];
-        var fileName = lastSlash == -1 ? normalizedPath : normalizedPath[(lastSlash + 1)..];
-
         return await TranslateAsync(async () =>
         {
-            // Resolve the entry before streaming so missing files, unknown roots,
-            // and remote listing failures become translated HTTP errors instead
-            // of a mid-stream failure after the response has started.
-            var listing = await service.GetDirectoryListingAsync(serverId, root, parentPath, cancellationToken);
-            if (listing.Entries.All(entry => entry.IsFolder ||
-                    !entry.Name.Equals(fileName, StringComparison.OrdinalIgnoreCase)))
-            {
-                throw new FileNotFoundException($"File '{path}' was not found.");
-            }
+            // Resolve the file before streaming so missing files, folders, unknown
+            // roots, and remote failures become translated HTTP errors instead of a
+            // mid-stream failure after the response has started.
+            var file = await service.GetFileInfoAsync(serverId, root, path, cancellationToken);
+            var fileName = file.Name;
 
             return Results.Stream(
                 async stream => await service.DownloadFileAsync(serverId, root, path, stream, cancellationToken),
@@ -172,6 +163,10 @@ public static class AutomationApiEndpoints
         catch (InvalidRelativePathException exception)
         {
             throw new HttpException(StatusCodes.Status400BadRequest, "Invalid relative path", exception.Message);
+        }
+        catch (InvalidFileOperationException exception)
+        {
+            throw new HttpException(StatusCodes.Status400BadRequest, "Invalid file operation", exception.Message);
         }
         catch (PermissionDeniedException exception)
         {

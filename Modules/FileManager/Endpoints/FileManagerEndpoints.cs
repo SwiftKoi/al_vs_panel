@@ -11,15 +11,22 @@ using Microsoft.Net.Http.Headers;
 
 namespace AlegacyWebPanel.Modules.FileManager.Endpoints;
 
-public sealed record SaveFileContentRequest(string Path, string Content);
+public sealed record SaveFileContentRequest(string Path, string Content, DateTimeOffset? ExpectedModified = null);
 public sealed record CreateDirectoryRequest(string Path);
 public sealed record RenameRequest(string Path, string NewName);
 public sealed record MoveRequest(string SourcePath, string DestinationPath);
-public sealed record CompressRequest(string SourcePath, string DestinationZipPath);
+public sealed record CompressRequest(IReadOnlyList<string> SourcePaths, string DestinationZipPath);
 public sealed record ExtractRequest(string ZipPath, string DestinationDirectoryPath);
 
 public static class FileManagerEndpoints
 {
+    public static async Task<IResult> RootsAsync(
+        string serverId,
+        IFileManagerService service)
+    {
+        return await TranslateAsync(() => Task.FromResult(service.GetRoots(serverId)));
+    }
+
     public static async Task<IResult> ListAsync(
         string serverId,
         string root,
@@ -46,11 +53,14 @@ public static class FileManagerEndpoints
             return Results.BadRequest("Path is required.");
         }
 
-        var fileName = Path.GetFileName(path);
-
         return await TranslateAsync(async () =>
         {
-            // Verify access synchronously first to capture exceptions before stream execution
+            // Validate before streaming: once Results.Stream starts, the 200 status and
+            // headers are sent and a missing file or bad path can no longer become an
+            // error response — the browser would save an empty or truncated file.
+            var file = await service.GetFileInfoAsync(serverId, root, path, cancellationToken);
+            var fileName = file.Name;
+
             return Results.Stream(async stream =>
             {
                 await service.DownloadFileAsync(serverId, root, path, stream, cancellationToken);
@@ -96,8 +106,12 @@ public static class FileManagerEndpoints
                 root,
                 request.Path,
                 request.Content ?? string.Empty,
+                request.ExpectedModified,
                 cancellationToken);
-            return Results.Ok();
+
+            // Return the new modification time so the editor can detect later changes.
+            var saved = await service.GetFileInfoAsync(serverId, root, request.Path, cancellationToken);
+            return Results.Ok(new { saved.Modified });
         });
     }
 
@@ -154,34 +168,33 @@ public static class FileManagerEndpoints
         }
 
         var reader = new MultipartReader(boundary, request.Body);
+        var uploaded = 0;
         MultipartSection? section;
         while ((section = await reader.ReadNextSectionAsync(cancellationToken)) != null)
         {
             var hasContentDisposition = ContentDispositionHeaderValue.TryParse(
                 section.ContentDisposition, out var contentDisposition);
 
-            if (hasContentDisposition && 
+            if (hasContentDisposition &&
                 contentDisposition != null &&
-                contentDisposition.DispositionType.Equals("form-data") && 
+                contentDisposition.DispositionType.Equals("form-data") &&
                 !string.IsNullOrEmpty(contentDisposition.FileName.Value))
             {
                 var fileName = contentDisposition.FileName.Value!;
                 var relativePath = string.IsNullOrEmpty(path) ? fileName : $"{path.TrimEnd('/')}/{fileName}";
+                var body = section.Body;
 
-                return await TranslateAsync(async () =>
+                // Every file part is written; each one is size-limited on its own.
+                await TranslateAsync(async () =>
                 {
-                    await service.UploadFileAsync(
-                        serverId,
-                        root,
-                        relativePath,
-                        section.Body,
-                        cancellationToken);
+                    await service.UploadFileAsync(serverId, root, relativePath, body, cancellationToken);
                     return Results.Ok();
                 });
+                uploaded++;
             }
         }
 
-        return Results.BadRequest("No file found in request.");
+        return uploaded > 0 ? Results.Ok() : Results.BadRequest("No file found in request.");
     }
 
     public static async Task<IResult> CreateDirectoryAsync(
@@ -267,14 +280,14 @@ public static class FileManagerEndpoints
         IFileManagerService service,
         CancellationToken cancellationToken)
     {
-        if (request == null || string.IsNullOrEmpty(request.SourcePath) || string.IsNullOrEmpty(request.DestinationZipPath))
+        if (request == null || request.SourcePaths is not { Count: > 0 } || string.IsNullOrEmpty(request.DestinationZipPath))
         {
-            return Results.BadRequest("SourcePath and DestinationZipPath are required.");
+            return Results.BadRequest("SourcePaths and DestinationZipPath are required.");
         }
 
         return await TranslateAsync(async () =>
         {
-            var taskId = await service.ArchiveAsync(serverId, root, request.SourcePath, request.DestinationZipPath, cancellationToken);
+            var taskId = await service.ArchiveAsync(serverId, root, request.SourcePaths, request.DestinationZipPath, cancellationToken);
             return Results.Accepted($"/api/servers/operations/{taskId}", new { TaskId = taskId });
         });
     }
@@ -286,7 +299,8 @@ public static class FileManagerEndpoints
         IFileManagerService service,
         CancellationToken cancellationToken)
     {
-        if (request == null || string.IsNullOrEmpty(request.ZipPath) || string.IsNullOrEmpty(request.DestinationDirectoryPath))
+        // An empty destination means the root folder itself.
+        if (request == null || string.IsNullOrEmpty(request.ZipPath) || request.DestinationDirectoryPath is null)
         {
             return Results.BadRequest("ZipPath and DestinationDirectoryPath are required.");
         }
@@ -322,37 +336,9 @@ public static class FileManagerEndpoints
         {
             return await operation();
         }
-        catch (InstanceNotFoundException exception)
+        catch (Exception exception) when (Translate(exception) is { } httpException)
         {
-            throw new HttpException(StatusCodes.Status404NotFound, "Instance not found", exception.Message);
-        }
-        catch (RootNotFoundException exception)
-        {
-            throw new HttpException(StatusCodes.Status404NotFound, "Root not found", exception.Message);
-        }
-        catch (InvalidRelativePathException exception)
-        {
-            throw new HttpException(StatusCodes.Status400BadRequest, "Invalid relative path", exception.Message);
-        }
-        catch (PermissionDeniedException exception)
-        {
-            throw new HttpException(StatusCodes.Status403Forbidden, "Permission denied", exception.Message);
-        }
-        catch (FileTooLargeException exception)
-        {
-            throw new HttpException(StatusCodes.Status413PayloadTooLarge, "File too large", exception.Message);
-        }
-        catch (UnsupportedFileException exception)
-        {
-            throw new HttpException(StatusCodes.Status415UnsupportedMediaType, "Unsupported file format", exception.Message);
-        }
-        catch (FileNotFoundException exception)
-        {
-            throw new HttpException(StatusCodes.Status404NotFound, "File not found", exception.Message);
-        }
-        catch (RemoteOperationFailedException exception)
-        {
-            throw new HttpException(StatusCodes.Status502BadGateway, "Remote operation failed", exception.Message);
+            throw httpException;
         }
     }
 
@@ -362,37 +348,26 @@ public static class FileManagerEndpoints
         {
             return Results.Ok(await operation());
         }
-        catch (InstanceNotFoundException exception)
+        catch (Exception exception) when (Translate(exception) is { } httpException)
         {
-            throw new HttpException(StatusCodes.Status404NotFound, "Instance not found", exception.Message);
-        }
-        catch (RootNotFoundException exception)
-        {
-            throw new HttpException(StatusCodes.Status404NotFound, "Root not found", exception.Message);
-        }
-        catch (InvalidRelativePathException exception)
-        {
-            throw new HttpException(StatusCodes.Status400BadRequest, "Invalid relative path", exception.Message);
-        }
-        catch (PermissionDeniedException exception)
-        {
-            throw new HttpException(StatusCodes.Status403Forbidden, "Permission denied", exception.Message);
-        }
-        catch (FileTooLargeException exception)
-        {
-            throw new HttpException(StatusCodes.Status413PayloadTooLarge, "File too large", exception.Message);
-        }
-        catch (UnsupportedFileException exception)
-        {
-            throw new HttpException(StatusCodes.Status415UnsupportedMediaType, "Unsupported file format", exception.Message);
-        }
-        catch (FileNotFoundException exception)
-        {
-            throw new HttpException(StatusCodes.Status404NotFound, "File not found", exception.Message);
-        }
-        catch (RemoteOperationFailedException exception)
-        {
-            throw new HttpException(StatusCodes.Status502BadGateway, "Remote operation failed", exception.Message);
+            throw httpException;
         }
     }
+
+    private static HttpException? Translate(Exception exception) => exception switch
+    {
+        InstanceNotFoundException => new HttpException(StatusCodes.Status404NotFound, "Instance not found", exception.Message),
+        RootNotFoundException => new HttpException(StatusCodes.Status404NotFound, "Root not found", exception.Message),
+        InvalidRelativePathException => new HttpException(StatusCodes.Status400BadRequest, "Invalid relative path", exception.Message),
+        InvalidFileOperationException => new HttpException(StatusCodes.Status400BadRequest, "Invalid file operation", exception.Message),
+        PermissionDeniedException => new HttpException(StatusCodes.Status403Forbidden, "Permission denied", exception.Message),
+        FileTooLargeException => new HttpException(StatusCodes.Status413PayloadTooLarge, "File too large", exception.Message),
+        UnsupportedFileException => new HttpException(StatusCodes.Status415UnsupportedMediaType, "Unsupported file format", exception.Message),
+        FileNotFoundException => new HttpException(StatusCodes.Status404NotFound, "File not found", exception.Message),
+        ItemAlreadyExistsException => new HttpException(StatusCodes.Status409Conflict, "Already exists", exception.Message),
+        FileChangedException => new HttpException(StatusCodes.Status409Conflict, "File changed", exception.Message),
+        TooManyOperationsException => new HttpException(StatusCodes.Status429TooManyRequests, "Too many operations", exception.Message),
+        RemoteOperationFailedException => new HttpException(StatusCodes.Status502BadGateway, "Remote operation failed", exception.Message),
+        _ => null
+    };
 }

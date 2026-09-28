@@ -21,29 +21,10 @@ export function mapFileEntry(entry: FileEntryDto): FileItem {
     name: entry.name,
     isFolder: entry.isFolder,
     size: entry.isFolder ? "—" : formatFileSize(entry.size),
-    modified: formatModifiedDate(entry.modified)
+    modified: formatModifiedDate(entry.modified),
+    sizeBytes: entry.isFolder ? -1 : entry.size,
+    modifiedMs: Date.parse(entry.modified) || 0
   };
-}
-
-export function parseSizeBytes(size: string): number {
-  if (size === "—" || !size) return -1;
-  const match = size.trim().match(/^([\d.]+)\s*(B|KB|MB|GB)?$/i);
-  if (!match) return 0;
-  const value = parseFloat(match[1]);
-  const unit = (match[2] || "B").toUpperCase();
-  return unit === "GB" ? value * 1024 ** 3 : unit === "MB" ? value * 1024 ** 2 : unit === "KB" ? value * 1024 : value;
-}
-
-export function parseDateMs(value: string): number {
-  try {
-    const [datePart, timePart] = value.split(",");
-    if (!datePart || !timePart) return 0;
-    const [day, month, year] = datePart.trim().split(".").map(Number);
-    const [hours, minutes, seconds] = timePart.trim().split(":").map(Number);
-    return new Date(year, month - 1, day, hours, minutes, seconds).getTime();
-  } catch {
-    return 0;
-  }
 }
 
 export function sortFileItems(items: FileItem[], field: FileSortField, direction: SortDirection): FileItem[] {
@@ -52,8 +33,23 @@ export function sortFileItems(items: FileItem[], field: FileSortField, direction
     const result = field === "name"
       ? a.name.localeCompare(b.name, undefined, { numeric: true, sensitivity: "base" })
       : field === "size"
-        ? parseSizeBytes(a.size) - parseSizeBytes(b.size)
-        : parseDateMs(a.modified) - parseDateMs(b.modified);
+        ? a.sizeBytes - b.sizeBytes
+        : a.modifiedMs - b.modifiedMs;
     return direction === "asc" ? result : -result;
   });
+}
+
+/** Default archive name: a file loses only its last extension, a folder keeps its full name. */
+export function defaultArchiveName(items: FileItem[]): string {
+  if (items.length !== 1) return "archive.zip";
+  const { name, isFolder } = items[0];
+  if (name.toLowerCase().endsWith(".zip")) return name;
+  const dot = name.lastIndexOf(".");
+  const base = !isFolder && dot > 0 ? name.slice(0, dot) : name;
+  return `${base}.zip`;
+}
+
+/** Normalises a user-typed folder path; "" and "/" both mean the root. */
+export function normalizeFolderPath(value: string): string {
+  return value.trim().split("/").filter(Boolean).join("/");
 }

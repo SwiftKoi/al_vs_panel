@@ -8,6 +8,7 @@ public static class FileManagerRoutes
     {
         var group = endpoints.MapGroup("/api/servers").RequireAuthorization();
 
+        group.MapGet("/{serverId}/files", FileManagerEndpoints.RootsAsync);
         group.MapGet("/{serverId}/files/{root}", FileManagerEndpoints.ListAsync);
         group.MapGet("/{serverId}/files/{root}/download", FileManagerEndpoints.DownloadAsync);
         group.MapGet("/{serverId}/files/{root}/content", FileManagerEndpoints.GetContentAsync);

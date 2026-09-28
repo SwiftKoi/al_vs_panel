@@ -32,10 +32,11 @@ import FileDetailsPanel from "@/components/file-manager/FileDetailsPanel";
 import FileManagerActions from "@/components/file-manager/FileManagerActions";
 import { useTranslation } from "react-i18next";
 import { useServer } from "@/context/ServerContext";
-import { filesApi, type FileRootDto } from "@/api/files";
+import { filesApi, type DirectoryListingDto, type FileRootDto } from "@/api/files";
 import type { ActiveModal, FileItem, FileSortField, SortDirection } from "@/components/file-manager/types";
 import { FILE_MANAGER_UP_DROP_TARGET } from "@/lib/constants";
-import { mapFileEntry, sortFileItems } from "@/lib/fileManager";
+import { defaultArchiveName, mapFileEntry, normalizeFolderPath, sortFileItems } from "@/lib/fileManager";
+import type { BackgroundTask } from "@/components/file-manager/BackgroundTaskBar";
 
 export default function FileManagerPage() {
   const { t } = useTranslation();
@@ -53,11 +54,12 @@ export default function FileManagerPage() {
   const [tempPath, setTempPath] = useState<string>(() => searchParams.get("path") || "");
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [listingNotice, setListingNotice] = useState<Pick<DirectoryListingDto, "truncated" | "skipped"> | null>(null);
+  // Only the newest listing request may update the table; slower, older responses are dropped.
+  const listingRequestRef = useRef(0);
 
-  // Background Task tracking
-  const [activeTaskId, setActiveTaskId] = useState<string | null>(null);
-  const [activeTaskStatus, setActiveTaskStatus] = useState<string | null>(null);
-  const [activeTaskDesc, setActiveTaskDesc] = useState<string | null>(null);
+  // Background Task tracking (every started zip/unzip task is polled until it finishes)
+  const [tasks, setTasks] = useState<BackgroundTask[]>([]);
 
   // Modal State
   const [activeModal, setActiveModal] = useState<ActiveModal>(null);
@@ -68,6 +70,7 @@ export default function FileManagerPage() {
   const [isEditorOpen, setIsEditorOpen] = useState(false);
   const [editingFile, setEditingFile] = useState<FileItem | null>(null);
   const [editorContent, setEditorContent] = useState("");
+  const [editorModified, setEditorModified] = useState<string | undefined>(undefined);
 
   // Sorting State
   const [sortField, setSortField] = useState<FileSortField>("name");
@@ -92,25 +95,52 @@ export default function FileManagerPage() {
   // Fetch Listing callback
   const fetchDirectoryListing = useCallback(() => {
     if (!selectedServer) return;
-    const rootToLoad = selectedRootId || "data";
+    const requestId = ++listingRequestRef.current;
+    const isCurrent = () => requestId === listingRequestRef.current;
     setLoading(true);
     setError(null);
-    filesApi.list(selectedServer.id, rootToLoad, currentPath)
-      .then((res) => {
-        setRoots(res.roots);
-        if (!selectedRootId) {
-          setSelectedRootId(rootToLoad);
-        }
 
+    if (!selectedRootId) {
+      // No root chosen yet: ask the server which roots exist instead of assuming one.
+      filesApi.roots(selectedServer.id)
+        .then((res) => {
+          if (!isCurrent()) return;
+          setRoots(res);
+          const preferred = res.find((r) => r.id === "data") ?? res.find((r) => r.isWritable) ?? res[0];
+          if (preferred) {
+            setSelectedRootId(preferred.id);
+          } else {
+            setItems([]);
+            setLoading(false);
+          }
+        })
+        .catch((err) => {
+          if (!isCurrent()) return;
+          setError(errorText(err));
+          setLoading(false);
+        });
+      return;
+    }
+
+    filesApi.list(selectedServer.id, selectedRootId, currentPath)
+      .then((res) => {
+        if (!isCurrent()) return;
+        setRoots(res.roots);
         setItems(res.entries.map(mapFileEntry));
+        setListingNotice(res.truncated || res.skipped > 0 ? { truncated: res.truncated, skipped: res.skipped } : null);
       })
       .catch((err) => {
-        setError(err instanceof Error ? err.message : String(err));
+        if (!isCurrent()) return;
+        setError(errorText(err));
       })
       .finally(() => {
-        setLoading(false);
+        if (isCurrent()) setLoading(false);
       });
   }, [selectedServer?.id, selectedRootId, currentPath]);
+
+  const startTask = (taskId: string, description: string) => {
+    setTasks((prev) => [...prev, { id: taskId, description, status: "Running" }]);
+  };
 
   // Load directories on init/change
   useEffect(() => {
@@ -147,31 +177,41 @@ export default function FileManagerPage() {
   }, [selectedServer?.id, searchParams, setSearchParams]);
 
   // Task Status Poller
+  const runningTaskIds = tasks.filter((task) => task.status === "Running").map((task) => task.id).join(",");
   useEffect(() => {
-    if (!activeTaskId) return;
+    if (!runningTaskIds) return;
+    const ids = runningTaskIds.split(",");
     const timer = setInterval(() => {
-      filesApi.getOperationStatus(activeTaskId)
-        .then((res) => {
-          setActiveTaskStatus(res.status);
-          setActiveTaskDesc(res.description);
-          if (res.status === "Completed") {
-            clearInterval(timer);
-            setActiveTaskId(null);
-            fetchDirectoryListing();
-          } else if (res.status === "Failed") {
-            clearInterval(timer);
-            alert(`Background task failed: ${res.errorMessage || "Unknown error"}`);
-            setActiveTaskId(null);
-            fetchDirectoryListing();
+      Promise.allSettled(ids.map((id) => filesApi.getOperationStatus(id))).then((results) => {
+        let anyFinished = false;
+        const failures: string[] = [];
+        setTasks((prev) => prev.flatMap((task) => {
+          const index = ids.indexOf(task.id);
+          if (index === -1) return [task];
+          const result = results[index];
+          if (result.status === "rejected") {
+            // Usually the panel restarted and forgot the task; its outcome is unknown.
+            anyFinished = true;
+            failures.push(`${task.description}: ${t("fileManager.taskLost")}`);
+            return [];
           }
-        })
-        .catch(() => {
-          clearInterval(timer);
-          setActiveTaskId(null);
-        });
+          if (result.value.status === "Completed") {
+            anyFinished = true;
+            return [];
+          }
+          if (result.value.status === "Failed") {
+            anyFinished = true;
+            failures.push(`${task.description}: ${result.value.errorMessage || "Unknown error"}`);
+            return [];
+          }
+          return [{ ...task, status: result.value.status }];
+        }));
+        if (failures.length > 0) setError(failures.join("\n"));
+        if (anyFinished) fetchDirectoryListing();
+      });
     }, 1500);
     return () => clearInterval(timer);
-  }, [activeTaskId, fetchDirectoryListing]);
+  }, [runningTaskIds, fetchDirectoryListing, t]);
 
   const handleSort = (field: FileSortField) => {
     if (sortField === field) {
@@ -298,10 +338,11 @@ export default function FileManagerPage() {
       .then((res) => {
         setEditingFile(item);
         setEditorContent(res.content);
+        setEditorModified(res.modified);
         setIsEditorOpen(true);
       })
       .catch((err) => {
-        alert("Error loading content: " + (err instanceof Error ? err.message : String(err)));
+        setError("Error loading content: " + errorText(err));
       })
       .finally(() => {
         setLoading(false);
@@ -340,10 +381,7 @@ export default function FileManagerPage() {
 
   const openPackModal = () => {
     if (selectedItems.length === 0) return;
-    const defaultName = selectedItems.length === 1 
-      ? (selectedItems[0].name.endsWith(".zip") ? selectedItems[0].name : `${selectedItems[0].name.split(".")[0]}.zip`)
-      : "archive.zip";
-    setModalInput(defaultName);
+    setModalInput(defaultArchiveName(selectedItems));
     setActiveModal("pack");
   };
 
@@ -403,12 +441,12 @@ export default function FileManagerPage() {
   };
 
   const handleFilesDrop = (files: File[]) => {
-    if (!selectedServer || files.length === 0) return;
+    if (!selectedServer || !selectedRootId || files.length === 0) return;
     setDragActive(false);
     setLoading(true);
     setError(null);
     Promise.allSettled(
-      files.map((file) => filesApi.upload(selectedServer.id, selectedRootId || "data", currentPath, file))
+      files.map((file) => filesApi.upload(selectedServer.id, selectedRootId, currentPath, file))
     )
       .then((results) => {
         const failed = results.filter((r) => r.status === "rejected");
@@ -463,7 +501,7 @@ export default function FileManagerPage() {
   const handleFolderDrop = (e: React.DragEvent, targetFolder: FileItem) => {
     e.preventDefault();
     e.stopPropagation();
-    if (!selectedServer || !dragSource) return;
+    if (!selectedServer || !selectedRootId || !dragSource) return;
 
     const sourcePath = currentPath ? `${currentPath}/${dragSource.name}` : dragSource.name;
     const targetFolderPath = currentPath ? `${currentPath}/${targetFolder.name}` : targetFolder.name;
@@ -481,7 +519,7 @@ export default function FileManagerPage() {
     setDropTargetName(null);
     setLoading(true);
     setError(null);
-    filesApi.move(selectedServer.id, selectedRootId || "data", sourcePath, destPath)
+    filesApi.move(selectedServer.id, selectedRootId, sourcePath, destPath)
       .then(() => {
         fetchDirectoryListing();
         setSelectedItems([]);
@@ -507,7 +545,7 @@ export default function FileManagerPage() {
   const handleUpDrop = (e: React.DragEvent) => {
     e.preventDefault();
     e.stopPropagation();
-    if (!selectedServer || !dragSource || !currentPath) return;
+    if (!selectedServer || !selectedRootId || !dragSource || !currentPath) return;
 
     const parts = currentPath.split("/").filter(Boolean);
     parts.pop();
@@ -519,7 +557,7 @@ export default function FileManagerPage() {
     setDropTargetName(null);
     setLoading(true);
     setError(null);
-    filesApi.move(selectedServer.id, selectedRootId || "data", sourcePath, destPath)
+    filesApi.move(selectedServer.id, selectedRootId, sourcePath, destPath)
       .then(() => {
         fetchDirectoryListing();
         setSelectedItems([]);
@@ -543,7 +581,8 @@ export default function FileManagerPage() {
           fetchDirectoryListing();
         })
         .catch((err) => {
-          alert("Error creating folder: " + (err instanceof Error ? err.message : String(err)));
+          setError("Error creating folder: " + errorText(err));
+          closeModal();
           setLoading(false);
         });
     } else if (activeModal === "rename" && selectedItem && modalInput.trim()) {
@@ -556,11 +595,17 @@ export default function FileManagerPage() {
           setSelectedItems([]);
         })
         .catch((err) => {
-          alert("Error renaming: " + (err instanceof Error ? err.message : String(err)));
+          setError("Error renaming: " + errorText(err));
+          closeModal();
           setLoading(false);
         });
-    } else if (activeModal === "move" && selectedItems.length > 0 && modalInput.trim()) {
-      const destFolder = modalInput.trim();
+    } else if (activeModal === "move" && selectedItems.length > 0) {
+      // An empty destination means the root folder.
+      const destFolder = normalizeFolderPath(modalInput);
+      if (destFolder === currentPath) {
+        closeModal();
+        return;
+      }
       setLoading(true);
       setError(null);
 
@@ -590,27 +635,26 @@ export default function FileManagerPage() {
         setSelectedItems([]);
       });
     } else if (activeModal === "pack" && selectedItems.length > 0 && modalInput.trim()) {
-      const source = selectedItems.map(item => currentPath ? `${currentPath}/${item.name}` : item.name).join(";");
+      const sources = selectedItems.map(item => currentPath ? `${currentPath}/${item.name}` : item.name);
       const dest = currentPath ? `${currentPath}/${modalInput.trim()}` : modalInput.trim();
       setLoading(true);
-      filesApi.compress(selectedServer.id, selectedRootId, source, dest)
+      filesApi.compress(selectedServer.id, selectedRootId, sources, dest)
         .then((res) => {
           closeModal();
           setLoading(false);
-          setActiveTaskId(res.taskId);
-          setActiveTaskStatus("Running");
-          setActiveTaskDesc(`Compressing ${selectedItems.length} items to '${dest}'`);
+          startTask(res.taskId, `Compressing ${sources.length} item(s) to '${dest}'`);
         })
         .catch((err) => {
-          alert("Error starting archiving: " + (err instanceof Error ? err.message : String(err)));
+          setError("Error starting archiving: " + errorText(err));
+          closeModal();
           setLoading(false);
         });
-    } else if (activeModal === "unpack" && selectedItems.length > 0 && modalInput.trim()) {
-      const dest = modalInput.trim();
+    } else if (activeModal === "unpack" && selectedItems.length > 0) {
+      // An empty destination means the root folder.
+      const dest = normalizeFolderPath(modalInput);
       setLoading(true);
       setError(null);
 
-      let lastTaskId: string | null = null;
       let failedCount = 0;
       let firstError: string | null = null;
 
@@ -619,7 +663,7 @@ export default function FileManagerPage() {
           const source = currentPath ? `${currentPath}/${item.name}` : item.name;
           try {
             const res = await filesApi.extract(selectedServer.id, selectedRootId, source, dest);
-            lastTaskId = res.taskId;
+            startTask(res.taskId, `Extracting '${item.name}' to '/${dest}'`);
           } catch (err) {
             failedCount++;
             if (!firstError) {
@@ -634,13 +678,6 @@ export default function FileManagerPage() {
         }
         closeModal();
         setLoading(false);
-        if (lastTaskId) {
-          setActiveTaskId(lastTaskId);
-          setActiveTaskStatus("Running");
-          setActiveTaskDesc(`Extracting archives to '${dest}'`);
-        } else {
-          fetchDirectoryListing();
-        }
       });
     } else if (activeModal === "delete" && selectedItems.length > 0) {
       setLoading(true);
@@ -678,7 +715,8 @@ export default function FileManagerPage() {
           fetchDirectoryListing();
         })
         .catch((err) => {
-          alert("Error uploading: " + (err instanceof Error ? err.message : String(err)));
+          setError("Error uploading: " + errorText(err));
+          closeModal();
           setLoading(false);
         });
     }
@@ -698,11 +736,7 @@ export default function FileManagerPage() {
       />
 
       {/* Background Task Bar */}
-      <BackgroundTaskBar
-        description={activeTaskId ? activeTaskDesc : null}
-        status={activeTaskStatus}
-        onHide={() => setActiveTaskId(null)}
-      />
+      <BackgroundTaskBar tasks={tasks} />
 
       {/* Unified Top Control Header */}
       <div className="flex flex-col gap-3 glass-panel rounded-lg p-3 shadow-md">
@@ -846,7 +880,17 @@ export default function FileManagerPage() {
           {error && (
             <div className="m-4 flex items-start gap-2.5 rounded-md bg-rose-950/30 border border-rose-500/30 p-3.5 text-xs text-rose-200 font-medium">
               <AlertCircle size={16} className="text-rose-400 shrink-0 mt-0.5" />
-              <div>{error}</div>
+              <div className="whitespace-pre-line">{error}</div>
+            </div>
+          )}
+
+          {listingNotice && (
+            <div className="mx-4 mt-4 flex items-start gap-2.5 rounded-md bg-amber-950/30 border border-amber-500/30 p-3 text-xs text-amber-200">
+              <AlertCircle size={16} className="text-amber-400 shrink-0 mt-0.5" />
+              <div>
+                {listingNotice.truncated && <div>{t("fileManager.listingTruncated", { count: items.length })}</div>}
+                {listingNotice.skipped > 0 && <div>{t("fileManager.listingSkipped", { count: listingNotice.skipped })}</div>}
+              </div>
             </div>
           )}
 
@@ -1066,7 +1110,7 @@ export default function FileManagerPage() {
             type="text"
             value={modalInput}
             onChange={(e) => setModalInput(e.target.value)}
-            placeholder="Root relative path (e.g. Backups)"
+            placeholder="Root relative path (e.g. Backups); empty = root"
             className="w-full bg-slate-950/60 border border-red-950/45 rounded px-3 py-2 text-xs font-mono text-slate-200 focus:outline-none focus:border-[#e04444]"
           />
         </div>
@@ -1102,7 +1146,7 @@ export default function FileManagerPage() {
         title={t("fileManager.modals.unpackTitle")}
         icon={<Archive size={20} className="text-[#e04444]" />}
         onConfirm={handleModalConfirm}
-        confirmDisabled={!modalInput.trim() || loading}
+        confirmDisabled={loading}
         confirmLabel={loading ? "Extracting..." : t("fileManager.unpack")}
       >
         <div className="space-y-3">
@@ -1113,7 +1157,7 @@ export default function FileManagerPage() {
             type="text"
             value={modalInput}
             onChange={(e) => setModalInput(e.target.value)}
-            placeholder="Destination directory relative path"
+            placeholder="Destination directory relative path; empty = root"
             className="w-full bg-slate-950/60 border border-red-950/45 rounded px-3 py-2 text-xs font-mono text-slate-200 focus:outline-none focus:border-[#e04444]"
           />
         </div>
@@ -1155,20 +1199,23 @@ export default function FileManagerPage() {
           filename={editingFile.name}
           filePath={currentPath ? `${currentPath}/${editingFile.name}` : editingFile.name}
           initialContent={editorContent}
+          modified={editorModified}
           serverId={selectedServer.id}
           rootId={selectedRootId}
           onSave={(updatedContent) =>
-            filesApi.saveContent(selectedServer.id, selectedRootId, currentPath ? `${currentPath}/${editingFile.name}` : editingFile.name, updatedContent)
-              .then(() => {
+            filesApi.saveContent(selectedServer.id, selectedRootId, currentPath ? `${currentPath}/${editingFile.name}` : editingFile.name, updatedContent, editorModified)
+              .then((res) => {
                 setEditorContent(updatedContent);
+                setEditorModified(res.modified);
                 fetchDirectoryListing();
-              })
-              .catch((err) => {
-                alert("Error saving file: " + (err instanceof Error ? err.message : String(err)));
               })
           }
         />
       )}
     </div>
   );
+}
+
+function errorText(err: unknown): string {
+  return err instanceof Error ? err.message : String(err);
 }

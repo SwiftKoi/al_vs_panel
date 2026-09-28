@@ -106,7 +106,6 @@ public sealed class FileManagerServiceTests
     [InlineData("sub/../escaped")]
     [InlineData("sub\\..\\escaped")]
     [InlineData("/absolute")]
-    [InlineData("C:\\absolute")]
     [InlineData("~/relative")]
     [InlineData("control\nchar")]
     [InlineData("null\0char")]
@@ -224,11 +223,160 @@ public sealed class FileManagerServiceTests
         var repo = new FakeFileRepository([]);
         var service = CreateService(repo);
 
-        await service.SaveTextContentAsync("server-1", "data", "file.txt", "Saved Content", CancellationToken.None);
+        await service.SaveTextContentAsync("server-1", "data", "file.txt", "Saved Content", null, CancellationToken.None);
 
         Assert.Equal("data-files", repo.LastOperation);
         Assert.Equal("file.txt", repo.LastRelativePath);
         Assert.Equal("Saved Content"u8.ToArray(), repo.WrittenPayload);
+    }
+
+    [Fact]
+    public async Task GetTextContentAsync_preserves_a_utf8_bom_on_round_trip()
+    {
+        var payload = new byte[] { 0xEF, 0xBB, 0xBF, (byte)'{', (byte)'}' };
+        var repo = new FakeFileRepository([new("file.json", false, payload.Length, DateTimeOffset.UtcNow)], payload);
+        var service = CreateService(repo);
+
+        var content = await service.GetTextContentAsync("server-1", "data", "file.json", CancellationToken.None);
+        await service.SaveTextContentAsync("server-1", "data", "file.json", content.Content, null, CancellationToken.None);
+
+        Assert.Equal(payload, repo.WrittenPayload);
+    }
+
+    [Fact]
+    public async Task GetTextContentAsync_rejects_invalid_utf8_instead_of_corrupting_it()
+    {
+        var payload = new byte[] { (byte)'a', 0xE9, (byte)'b' }; // Latin-1 "é"
+        var repo = new FakeFileRepository([new("file.cfg", false, payload.Length, DateTimeOffset.UtcNow)], payload);
+        var service = CreateService(repo);
+
+        await Assert.ThrowsAsync<UnsupportedFileException>(() =>
+            service.GetTextContentAsync("server-1", "data", "file.cfg", CancellationToken.None));
+    }
+
+    [Fact]
+    public async Task GetTextContentAsync_matches_file_names_case_sensitively()
+    {
+        var repo = new FakeFileRepository([new("Config.json", false, 2, DateTimeOffset.UtcNow)], "{}"u8.ToArray());
+        var service = CreateService(repo);
+
+        await Assert.ThrowsAsync<FileNotFoundException>(() =>
+            service.GetTextContentAsync("server-1", "data", "config.json", CancellationToken.None));
+    }
+
+    [Fact]
+    public async Task SaveTextContentAsync_refuses_when_file_changed_since_it_was_opened()
+    {
+        var opened = new DateTimeOffset(2026, 9, 1, 12, 0, 0, TimeSpan.Zero);
+        var repo = new FakeFileRepository([new("file.txt", false, 1, opened)]) { StatModified = opened.AddMinutes(1) };
+        var service = CreateService(repo);
+
+        await Assert.ThrowsAsync<FileChangedException>(() =>
+            service.SaveTextContentAsync("server-1", "data", "file.txt", "x", opened, CancellationToken.None));
+        Assert.Null(repo.WrittenPayload);
+    }
+
+    [Fact]
+    public async Task SaveTextContentAsync_writes_when_file_is_unchanged()
+    {
+        var opened = new DateTimeOffset(2026, 9, 1, 12, 0, 0, TimeSpan.Zero);
+        var repo = new FakeFileRepository([new("file.txt", false, 1, opened)]);
+        var service = CreateService(repo);
+
+        await service.SaveTextContentAsync("server-1", "data", "file.txt", "x", opened, CancellationToken.None);
+
+        Assert.Equal("x"u8.ToArray(), repo.WrittenPayload);
+    }
+
+    [Fact]
+    public async Task GetFileInfoAsync_rejects_folders_and_missing_files()
+    {
+        var repo = new FakeFileRepository([new("Saves", true, 0, DateTimeOffset.UtcNow)]);
+        var service = CreateService(repo);
+
+        await Assert.ThrowsAsync<InvalidFileOperationException>(() =>
+            service.GetFileInfoAsync("server-1", "data", "Saves", CancellationToken.None));
+        await Assert.ThrowsAsync<FileNotFoundException>(() =>
+            service.GetFileInfoAsync("server-1", "data", "missing.txt", CancellationToken.None));
+    }
+
+    [Fact]
+    public async Task GetDirectoryListingAsync_applies_the_listing_limit()
+    {
+        var entries = Enumerable.Range(0, 5).Select(i => new FileEntryDto($"f{i}", false, 1, DateTimeOffset.UtcNow)).ToList();
+        var repo = new FakeFileRepository(entries);
+        var options = TestOptionsWith(o => o.MaximumListingEntries = 3);
+        var service = CreateService(repo, options);
+
+        var listing = await service.GetDirectoryListingAsync("server-1", "data", "", CancellationToken.None);
+
+        Assert.Equal(3, repo.LastMaximumListingEntries);
+        Assert.Equal(3, listing.Entries.Count);
+        Assert.True(listing.Truncated);
+    }
+
+    [Fact]
+    public async Task GetDirectoryListingAsync_allows_colons_in_file_names()
+    {
+        var service = CreateService(new FakeFileRepository([]));
+
+        await service.GetDirectoryListingAsync("server-1", "data", "Logs/crash-2026-09-01T12:00", CancellationToken.None);
+    }
+
+    [Fact]
+    public async Task ExtractAsync_passes_the_extraction_limits()
+    {
+        var repo = new FakeFileRepository([]);
+        var service = CreateService(repo);
+
+        var taskId = await service.ExtractAsync("server-1", "data", "backup.zip", "", CancellationToken.None);
+        await WaitForCompletionAsync(service, taskId);
+
+        Assert.Equal(TestOptions.MaximumArchiveSizeBytes, repo.LastMaximumExtractedBytes);
+    }
+
+    [Fact]
+    public async Task ArchiveAsync_passes_each_source_path_separately()
+    {
+        var repo = new FakeFileRepository([]);
+        var service = CreateService(repo);
+
+        var taskId = await service.ArchiveAsync("server-1", "data", ["a;b.txt", "dir"], "out.zip", CancellationToken.None);
+        await WaitForCompletionAsync(service, taskId);
+
+        Assert.Equal(["a;b.txt", "dir"], repo.LastSourcePaths);
+    }
+
+    [Fact]
+    public void BackgroundOperationTracker_rejects_operations_over_the_concurrency_limit()
+    {
+        var tracker = new BackgroundOperationTracker(Options.Create(new FileManagerOptions { MaximumConcurrentOperations = 1 }));
+        var gate = new TaskCompletionSource();
+
+        tracker.StartTracking("first", _ => gate.Task);
+
+        Assert.Throws<TooManyOperationsException>(() => tracker.StartTracking("second", _ => Task.CompletedTask));
+        gate.SetResult();
+    }
+
+    private static async Task WaitForCompletionAsync(FileManagerService service, string taskId)
+    {
+        for (var attempt = 0; attempt < 100; attempt++)
+        {
+            if (service.GetOperationStatus(taskId)?.Status is "Completed" or "Failed")
+            {
+                return;
+            }
+
+            await Task.Delay(10);
+        }
+    }
+
+    private static FileManagerOptions TestOptionsWith(Action<FileManagerOptions> configure)
+    {
+        var options = new FileManagerOptions { Instances = TestOptions.Instances };
+        configure(options);
+        return options;
     }
 
     [Fact]
@@ -352,7 +500,7 @@ public sealed class FileManagerServiceTests
         var tracker = new BackgroundOperationTracker();
         var service = new FileManagerService(repo, tracker, Options.Create(TestOptions), NullLogger<FileManagerService>.Instance);
 
-        var taskId = await service.ArchiveAsync("server-1", "data", "sub/folder", "backup.zip", CancellationToken.None);
+        var taskId = await service.ArchiveAsync("server-1", "data", ["sub/folder"], "backup.zip", CancellationToken.None);
 
         Assert.NotNull(taskId);
         var status = service.GetOperationStatus(taskId);
@@ -383,7 +531,7 @@ public sealed class FileManagerServiceTests
         var service = new FileManagerService(repo, tracker, Options.Create(TestOptions), NullLogger<FileManagerService>.Instance);
 
         await Assert.ThrowsAsync<PermissionDeniedException>(() =>
-            service.ArchiveAsync("server-1", "server", "sub/folder", "backup.zip", CancellationToken.None));
+            service.ArchiveAsync("server-1", "server", ["sub/folder"], "backup.zip", CancellationToken.None));
     }
 
     private sealed class FakeFileRepository(
@@ -396,14 +544,36 @@ public sealed class FileManagerServiceTests
         public string? LastNewName { get; private set; }
         public string? LastDestinationPath { get; private set; }
 
-        public Task<IReadOnlyList<FileEntryDto>> ListAsync(
+        public IReadOnlyList<string>? LastSourcePaths { get; private set; }
+        public long? LastMaximumExtractedBytes { get; private set; }
+        public int? LastMaximumListingEntries { get; private set; }
+        public DateTimeOffset? StatModified { get; init; }
+
+        public Task<DirectoryEntries> ListAsync(
             string operation,
             string relativePath,
+            int maximumEntries,
             CancellationToken cancellationToken)
         {
             LastOperation = operation;
             LastRelativePath = relativePath;
-            return Task.FromResult(entries);
+            LastMaximumListingEntries = maximumEntries;
+            return Task.FromResult(new DirectoryEntries(entries.Take(maximumEntries).ToList(), entries.Count > maximumEntries, 0));
+        }
+
+        public Task<FileEntryDto?> StatAsync(
+            string operation,
+            string relativePath,
+            CancellationToken cancellationToken)
+        {
+            var name = relativePath[(relativePath.LastIndexOf('/') + 1)..];
+            var entry = entries.FirstOrDefault(e => e.Name == name);
+            if (entry is not null && StatModified is { } modified)
+            {
+                entry = entry with { Modified = modified };
+            }
+
+            return Task.FromResult(entry);
         }
 
         public async Task ReadAsync(
@@ -463,16 +633,17 @@ public sealed class FileManagerServiceTests
             return Task.CompletedTask;
         }
 
-        public Task ArchiveAsync(string operation, string relativePath, string zipPath, CancellationToken cancellationToken)
+        public Task ArchiveAsync(string operation, IReadOnlyList<string> sourcePaths, string zipPath, CancellationToken cancellationToken)
         {
             LastOperation = operation;
-            LastRelativePath = relativePath;
+            LastSourcePaths = sourcePaths;
             LastDestinationPath = zipPath;
             return Task.CompletedTask;
         }
 
-        public Task ExtractAsync(string operation, string zipPath, string destPath, CancellationToken cancellationToken)
+        public Task ExtractAsync(string operation, string zipPath, string destPath, long maximumExtractedBytes, int maximumEntries, CancellationToken cancellationToken)
         {
+            LastMaximumExtractedBytes = maximumExtractedBytes;
             LastOperation = operation;
             LastRelativePath = zipPath;
             LastDestinationPath = destPath;

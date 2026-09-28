@@ -2,9 +2,21 @@ using AlegacyWebPanel.Modules.FileManager.Contracts;
 
 namespace AlegacyWebPanel.Modules.FileManager.Persistence;
 
+public sealed record DirectoryEntries(
+    IReadOnlyList<FileEntryDto> Entries,
+    bool Truncated,
+    int Skipped);
+
 public interface IFileRepository
 {
-    Task<IReadOnlyList<FileEntryDto>> ListAsync(
+    Task<DirectoryEntries> ListAsync(
+        string operation,
+        string relativePath,
+        int maximumEntries,
+        CancellationToken cancellationToken);
+
+    /// <summary>Metadata of one entry (symlinks followed), or null when it does not exist.</summary>
+    Task<FileEntryDto?> StatAsync(
         string operation,
         string relativePath,
         CancellationToken cancellationToken);
@@ -45,7 +57,7 @@ public interface IFileRepository
 
     Task ArchiveAsync(
         string operation,
-        string relativePath,
+        IReadOnlyList<string> sourcePaths,
         string zipPath,
         CancellationToken cancellationToken);
 
@@ -53,5 +65,7 @@ public interface IFileRepository
         string operation,
         string zipPath,
         string destPath,
+        long maximumExtractedBytes,
+        int maximumEntries,
         CancellationToken cancellationToken);
 }

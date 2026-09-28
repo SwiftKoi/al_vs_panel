@@ -15,9 +15,12 @@ interface CodeEditorModalProps {
   filename: string;
   filePath: string;
   initialContent?: string;
-  onSave?: (content: string) => void;
+  /** May return a promise; a rejection keeps the file marked unsaved and shows the error. */
+  onSave?: (content: string) => void | Promise<void>;
   serverId?: string;
   rootId?: string;
+  /** Server modification time of the loaded content, carried into the editor tab. */
+  modified?: string;
 }
 
 export default function CodeEditorModal({
@@ -28,7 +31,8 @@ export default function CodeEditorModal({
   initialContent = "",
   onSave,
   serverId,
-  rootId
+  rootId,
+  modified
 }: CodeEditorModalProps) {
   const { t } = useTranslation();
   const navigate = useNavigate();
@@ -36,6 +40,7 @@ export default function CodeEditorModal({
   const [isSaved, setIsSaved] = useState(true);
   const [isSaving, setIsSaving] = useState(false);
   const [fontSize, setFontSize] = useState("13px");
+  const [saveError, setSaveError] = useState<string | null>(null);
 
   const langName = useMemo(() => detectLanguage(filename), [filename]);
 
@@ -50,13 +55,17 @@ export default function CodeEditorModal({
     setIsSaved(false);
   };
 
-  const handleSave = () => {
+  const handleSave = async () => {
     setIsSaving(true);
-    setTimeout(() => {
-      onSave?.(code);
-      setIsSaving(false);
+    setSaveError(null);
+    try {
+      await onSave?.(code);
       setIsSaved(true);
-    }, 400);
+    } catch (err) {
+      setSaveError(err instanceof Error ? err.message : String(err));
+    } finally {
+      setIsSaving(false);
+    }
   };
 
   const handleMoveToEditor = () => {
@@ -65,7 +74,8 @@ export default function CodeEditorModal({
       path: filePath,
       content: code,
       serverId,
-      rootId
+      rootId,
+      modified
     });
     onClose();
     navigate("/editor");
@@ -145,6 +155,12 @@ export default function CodeEditorModal({
             </button>
           </div>
         </div>
+
+        {saveError && (
+          <div className="px-4 py-2 text-xs text-rose-200 bg-rose-950/40 border-b border-rose-500/30 shrink-0">
+            {saveError}
+          </div>
+        )}
 
         {/* CodeMirror Editor Work Area */}
         <div className="flex-1 overflow-hidden bg-slate-950/30 text-left">

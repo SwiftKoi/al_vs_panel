@@ -19,3 +19,15 @@ public sealed class FileTooLargeException(string message)
 
 public sealed class UnsupportedFileException(string message)
     : DomainException(message);
+
+public sealed class ItemAlreadyExistsException(string message)
+    : DomainException(message);
+
+public sealed class FileChangedException(string message)
+    : DomainException(message);
+
+public sealed class InvalidFileOperationException(string message)
+    : DomainException(message);
+
+public sealed class TooManyOperationsException(int limit)
+    : DomainException($"{limit} background file operations are already running. Wait for one to finish and try again.");
