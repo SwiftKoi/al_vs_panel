@@ -108,6 +108,10 @@ The log database is intentionally separate from the authentication database so l
 
 Owns recorded player activity and connection-quality history. A background worker samples live client connections through the public `IServerManagementService.GetConnectionsAsync` contract and imports player joins from server logs through an allowlisted RemoteOperations command, storing both in a dedicated SQLite database (`/var/lib/alegacy/data/analytics.db`). Queries follow `HTTP request -> Analytics endpoint -> IAnalyticsService -> IAnalyticsRepository -> AnalyticsDbContext`. See [`Modules/Analytics/README.md`](../Modules/Analytics/README.md) for sources, configuration, and the roadmap.
 
+### ModManager
+
+Owns installed-mod discovery, the ModDB client (cached release history, compatibility against the server's game version, sanitised changelogs), pins, and verified updates with a one-batch backup and rollback. Files on the game server are only touched through the allowlisted `mod-manager.py` helper via `IRemoteOperationsService`; the server start time and restart come from the public `IServerManagementService` contract. Updates never restart the server: they take effect on the next restart, which the page offers. See [`Modules/ModManager/README.md`](../Modules/ModManager/README.md).
+
 ## Persistence and state
 
 Authentication uses SQLite through the Authentication module’s persistence layer. The database is mounted at runtime through the `app_data` Docker volume.

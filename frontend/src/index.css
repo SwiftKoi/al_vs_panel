@@ -235,3 +235,12 @@ button, input, select, textarea { font: inherit; }
     transform: translateY(0);
   }
 }
+
+/* ModDB changelogs (sanitised HTML) */
+.changelog ul { list-style: disc; padding-left: 1.25rem; }
+.changelog ol { list-style: decimal; padding-left: 1.25rem; }
+.changelog li + li { margin-top: 0.125rem; }
+.changelog p + p, .changelog ul + p, .changelog p + ul { margin-top: 0.5rem; }
+.changelog a { color: #f87171; text-decoration: underline; }
+.changelog code { font-family: ui-monospace, monospace; color: #e2e8f0; }
+.changelog h1, .changelog h2, .changelog h3, .changelog h4 { font-weight: 700; color: #e2e8f0; margin-top: 0.5rem; }

@@ -1,5 +1,5 @@
 import { useLocation, useNavigate } from "react-router-dom";
-import { BarChart3, Code2, Folder, LayoutDashboard, ScrollText, Server, Settings } from "lucide-react";
+import { BarChart3, Code2, Folder, LayoutDashboard, Package, ScrollText, Server, Settings } from "lucide-react";
 import { useTranslation } from "react-i18next";
 import { cn } from "@/lib/cn";
 
@@ -29,6 +29,9 @@ export default function NavigationMenu() {
       </button>
       <button type="button" onClick={() => navigate("/editor")} className={navItemClass(isActive("/editor"))}>
         <Code2 size={16} /> {t("navigation.editor")}
+      </button>
+      <button type="button" onClick={() => navigate("/mods")} className={navItemClass(isActive("/mods"))}>
+        <Package size={16} /> {t("navigation.mods")}
       </button>
       <button type="button" onClick={() => navigate("/analytics")} className={navItemClass(isActive("/analytics"))}>
         <BarChart3 size={16} /> {t("navigation.analytics")}

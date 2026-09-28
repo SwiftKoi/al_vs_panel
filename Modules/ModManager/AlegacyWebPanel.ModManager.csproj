@@ -1,0 +1,36 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <TargetFramework>net10.0</TargetFramework>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <Nullable>enable</Nullable>
+    <AllowMissingPrunePackageData>true</AllowMissingPrunePackageData>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <FrameworkReference Include="Microsoft.AspNetCore.App" />
+    <Compile Remove="Tests/**/*.cs" />
+    <None Remove="Tests/**" />
+    <InternalsVisibleTo Include="AlegacyWebPanel.ModManager.UnitTests" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <Using Include="Microsoft.AspNetCore.Builder" />
+    <Using Include="Microsoft.AspNetCore.Http" />
+    <Using Include="Microsoft.AspNetCore.Routing" />
+    <Using Include="Microsoft.Extensions.Configuration" />
+    <Using Include="Microsoft.Extensions.DependencyInjection" />
+    <Using Include="Microsoft.Extensions.Hosting" />
+    <Using Include="Microsoft.Extensions.Logging" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="../../Core/AlegacyWebPanel.Core.csproj" />
+    <ProjectReference Include="../RemoteOperations/AlegacyWebPanel.RemoteOperations.csproj" />
+    <ProjectReference Include="../ServerManagement/AlegacyWebPanel.ServerManagement.csproj" />
+    <!-- Newtonsoft is what the game itself uses to read modinfo.json, so it accepts the same lenient syntax. -->
+    <PackageReference Include="Newtonsoft.Json" Version="13.0.3" />
+    <PackageReference Include="HtmlSanitizer" Version="9.0.886" />
+  </ItemGroup>
+
+</Project>

@@ -10,6 +10,7 @@ import FileManagerPage from "@/pages/FileManagerPage";
 import EditorPage from "@/pages/EditorPage";
 import AnalyticsPage from "@/pages/AnalyticsPage";
 import LogsPage from "@/pages/LogsPage";
+import ModsPage from "@/pages/ModsPage";
 import SettingsPage from "@/pages/SettingsPage";
 import { ServerProvider } from "@/context/ServerContext";
 import { ToastProvider } from "@/context/ToastContext";
@@ -28,6 +29,7 @@ function AuthenticatedApp({ onLogout }: { onLogout: () => void }) {
           <Route path="/server" element={<ServerPage />} />
           <Route path="/files" element={<FileManagerPage />} />
           <Route path="/editor" element={<EditorPage />} />
+          <Route path="/mods" element={<ModsPage />} />
           <Route path="/analytics" element={<AnalyticsPage />} />
           <Route path="/logs" element={<LogsPage />} />
           <Route path="/settings" element={<SettingsPage />} />

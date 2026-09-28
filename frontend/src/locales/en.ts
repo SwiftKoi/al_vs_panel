@@ -15,6 +15,7 @@ export const en = {
     files: "Files",
     editor: "Editor",
     analytics: "Analytics",
+    mods: "Mods",
     logs: "Logs",
     quickActions: "Quick actions",
     restartServer: "Restart",
@@ -594,6 +595,129 @@ export const en = {
         unknown: "Unknown (no end logged)",
         open: "Still online"
       }
+    }
+  },
+  mods: {
+    title: "Mods",
+    description: "Installed mods compared with the official Vintage Story ModDB.",
+    loading: "Loading mods…",
+    checkNow: "Check ModDB",
+    unknown: "unknown",
+    updateAll_one: "Update {{count}} mod",
+    updateAll_other: "Update all ({{count}})",
+    update: "Update",
+    updateTo: "Update to {{version}}",
+    install: "Install",
+    downgrade: "Downgrade",
+    pin: "Pin (exclude from Update all)",
+    unpin: "Unpin",
+    pinnedHint: "Pinned: skipped by Update all",
+    notLoaded: "not loaded by the running server",
+    releasesBehind_one: "{{count}} release behind",
+    releasesBehind_other: "{{count}} releases behind",
+    prereleaseAvailable: "pre-release {{version}} available",
+    search: "Search mods…",
+    empty: "No mods match.",
+    emptyUpdates: "Everything is up to date.",
+    restartRequired: "Mods changed since the server started. They take effect after a restart.",
+    restartNow: "Restart server",
+    lastUpdate_one: "Last update replaced {{count}} mod on {{time}}.",
+    lastUpdate_other: "Last update replaced {{count}} mods on {{time}}.",
+    rollback: "Roll back",
+    privateHint: "This mod is not published on ModDB. To update it, upload a new version through the File Manager (Data/Mods).",
+    whatsNew_one: "What you get: {{count}} release",
+    whatsNew_other: "What you get: {{count}} releases",
+    history: "Version history ({{count}})",
+    showAll: "Show all {{count}} releases",
+    noChangelog: "No changelog.",
+    summary: {
+      mods_one: "{{count}} mod",
+      mods_other: "{{count}} mods",
+      updates_one: "{{count}} update available",
+      updates_other: "{{count}} updates available",
+      upToDate: "Everything is up to date",
+      problems_one: "{{count}} needs attention",
+      problems_other: "{{count}} need attention",
+      game: "Game {{version}}",
+      checked: "checked {{time}}"
+    },
+    filters: {
+      updates: "Updates",
+      all: "All",
+      private: "Private",
+      problems: "Problems"
+    },
+    status: {
+      UpdateAvailable: "Update",
+      UpToDate: "Up to date",
+      Ahead: "Ahead of ModDB",
+      NoCompatibleRelease: "Incompatible",
+      NotOnModDb: "Private",
+      CheckFailed: "Check failed",
+      Unidentified: "Unreadable"
+    },
+    side: {
+      server: "Server",
+      client: "Client",
+      universal: "Universal",
+      both: "Universal"
+    },
+    facts: {
+      author: "Author",
+      side: "Side",
+      latest: "Latest on ModDB",
+      downloads: "Downloads"
+    },
+    links: {
+      source: "Source",
+      issues: "Issues"
+    },
+    tags: {
+      installed: "Installed",
+      target: "Update target",
+      prerelease: "Pre-release",
+      incompatible: "Other game version"
+    },
+    confirm: {
+      title_one: "Update {{count}} mod",
+      title_other: "Update {{count}} mods",
+      action_one: "Update",
+      action_other: "Update {{count}} mods",
+      note: "Files are downloaded from ModDB and checked before anything in Mods changes. The replaced files are kept so you can roll back. Changes take effect after the next server restart."
+    },
+    rollbackConfirm: {
+      title: "Roll back the last update?",
+      note: "The previous files are restored. Takes effect after the next server restart."
+    },
+    restartConfirm: {
+      title: "Restart the server?",
+      note: "Players online will be disconnected while the server restarts."
+    },
+    job: {
+      Running: "Updating mods…",
+      Succeeded: "Mods updated. Restart the server to apply.",
+      Failed: "Update failed"
+    },
+    itemState: {
+      Queued: "Queued",
+      Downloading: "Downloading",
+      Verifying: "Verifying",
+      Staged: "Ready",
+      Installed: "Installed",
+      Failed: "Failed"
+    },
+    toast: {
+      updated_one: "{{count}} mod updated. Restart to apply.",
+      updated_other: "{{count}} mods updated. Restart to apply.",
+      rolledBack: "Rolled back {{count}} file(s). Restart to apply.",
+      restarted: "Server restarted."
+    },
+    errors: {
+      load: "Could not load mods.",
+      update: "Could not update mods.",
+      rollback: "Could not roll back.",
+      restart: "Could not restart the server.",
+      pin: "Could not change the pin."
     }
   },
   logs: {

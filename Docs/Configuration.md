@@ -72,6 +72,8 @@ Remote operation definitions are configured under `Remote:Commands`. Each defini
 
 Analytics is configured under `Analytics` (database path, sampling and import intervals, retention, day-bucketing time zone, per-server `PlayerEventsOperation`, and `ProxyAddresses`). Proxy addresses are deployment-specific and should be set with `Analytics__ProxyAddresses__N` environment overrides. See [`Modules/Analytics/README.md`](../Modules/Analytics/README.md).
 
+Mod management is configured under `ModManager`: per-server `Servers:{id}:Operation` names the RemoteOperations command that runs `Server/*/mod-manager.py <Data dir>` (and an optional `GameVersion` override); ModDB URL, trusted download hosts, cache lifetime, timeouts and size limits have defaults. Servers without an entry have no Mods page data. See [`Modules/ModManager/README.md`](../Modules/ModManager/README.md).
+
 Server profiles are configured under `Servers:Instances`. Each profile exposes safe metadata (`Id`, `Name`, `Host`, `Port`, and `Location`) and references allowlisted RemoteOperations names through `StartOperation`, `StopOperation`, `RestartOperation`, `StatusOperation`, `ConsoleOperation`, `LogsOperation`, and `MetricsOperation`, plus an optional `ConnectionsOperation` for per-client connection diagnostics (the endpoint returns 503 when it is not configured). Browser input never supplies operation names, executable paths, SSH targets, Compose projects, or service names.
 
 `Servers:MaximumCommandLength` limits game-console commands and defaults to 512 characters. Server IDs must be non-empty and unique. An empty instance list is valid and makes the list endpoint return no configured servers.

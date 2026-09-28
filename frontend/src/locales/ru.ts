@@ -15,6 +15,7 @@ export const ru = {
     files: "Файлы",
     editor: "Редактор",
     analytics: "Аналитика",
+    mods: "Моды",
     logs: "Журнал",
     quickActions: "Быстрые действия",
     restartServer: "Рестарт",
@@ -594,6 +595,149 @@ export const ru = {
         unknown: "Неизвестно (нет записи)",
         open: "Ещё в игре"
       }
+    }
+  },
+  mods: {
+    title: "Моды",
+    description: "Установленные моды в сравнении с официальной ModDB Vintage Story.",
+    loading: "Загрузка модов…",
+    checkNow: "Проверить ModDB",
+    unknown: "неизвестна",
+    updateAll_one: "Обновить {{count}} мод",
+    updateAll_few: "Обновить все ({{count}})",
+    updateAll_many: "Обновить все ({{count}})",
+    updateAll_other: "Обновить все ({{count}})",
+    update: "Обновить",
+    updateTo: "Обновить до {{version}}",
+    install: "Установить",
+    downgrade: "Откатить до этой",
+    pin: "Закрепить (не обновлять вместе со всеми)",
+    unpin: "Открепить",
+    pinnedHint: "Закреплён: «Обновить все» его пропускает",
+    notLoaded: "не загружен запущенным сервером",
+    releasesBehind_one: "отстаёт на {{count}} релиз",
+    releasesBehind_few: "отстаёт на {{count}} релиза",
+    releasesBehind_many: "отстаёт на {{count}} релизов",
+    releasesBehind_other: "отстаёт на {{count}} релиза",
+    prereleaseAvailable: "доступен пре-релиз {{version}}",
+    search: "Поиск модов…",
+    empty: "Ничего не найдено.",
+    emptyUpdates: "Всё обновлено.",
+    restartRequired: "Моды изменились после запуска сервера. Изменения вступят в силу после перезапуска.",
+    restartNow: "Перезапустить сервер",
+    lastUpdate_one: "Последнее обновление заменило {{count}} мод ({{time}}).",
+    lastUpdate_few: "Последнее обновление заменило {{count}} мода ({{time}}).",
+    lastUpdate_many: "Последнее обновление заменило {{count}} модов ({{time}}).",
+    lastUpdate_other: "Последнее обновление заменило {{count}} мода ({{time}}).",
+    rollback: "Откатить",
+    privateHint: "Этого мода нет на ModDB. Чтобы обновить его, загрузите новую версию через файловый менеджер (Data/Mods).",
+    whatsNew_one: "Что нового: {{count}} релиз",
+    whatsNew_few: "Что нового: {{count}} релиза",
+    whatsNew_many: "Что нового: {{count}} релизов",
+    whatsNew_other: "Что нового: {{count}} релиза",
+    history: "История версий ({{count}})",
+    showAll: "Показать все релизы ({{count}})",
+    noChangelog: "Нет списка изменений.",
+    summary: {
+      mods_one: "{{count}} мод",
+      mods_few: "{{count}} мода",
+      mods_many: "{{count}} модов",
+      mods_other: "{{count}} мода",
+      updates_one: "доступно {{count}} обновление",
+      updates_few: "доступно {{count}} обновления",
+      updates_many: "доступно {{count}} обновлений",
+      updates_other: "доступно {{count}} обновления",
+      upToDate: "Всё обновлено",
+      problems_one: "{{count}} требует внимания",
+      problems_few: "{{count}} требуют внимания",
+      problems_many: "{{count}} требуют внимания",
+      problems_other: "{{count}} требуют внимания",
+      game: "Игра {{version}}",
+      checked: "проверено {{time}}"
+    },
+    filters: {
+      updates: "Обновления",
+      all: "Все",
+      private: "Приватные",
+      problems: "Проблемы"
+    },
+    status: {
+      UpdateAvailable: "Обновление",
+      UpToDate: "Актуален",
+      Ahead: "Новее ModDB",
+      NoCompatibleRelease: "Несовместим",
+      NotOnModDb: "Приватный",
+      CheckFailed: "Ошибка проверки",
+      Unidentified: "Не читается"
+    },
+    side: {
+      server: "Сервер",
+      client: "Клиент",
+      universal: "Универсальный",
+      both: "Универсальный"
+    },
+    facts: {
+      author: "Автор",
+      side: "Сторона",
+      latest: "Последняя на ModDB",
+      downloads: "Загрузки"
+    },
+    links: {
+      source: "Исходники",
+      issues: "Баг-трекер"
+    },
+    tags: {
+      installed: "Установлена",
+      target: "Цель обновления",
+      prerelease: "Пре-релиз",
+      incompatible: "Другая версия игры"
+    },
+    confirm: {
+      title_one: "Обновить {{count}} мод",
+      title_few: "Обновить {{count}} мода",
+      title_many: "Обновить {{count}} модов",
+      title_other: "Обновить {{count}} мода",
+      action_one: "Обновить",
+      action_few: "Обновить {{count}} мода",
+      action_many: "Обновить {{count}} модов",
+      action_other: "Обновить {{count}} мода",
+      note: "Файлы скачиваются с ModDB и проверяются до того, как в Mods что-то изменится. Заменённые файлы сохраняются для отката. Изменения вступят в силу после перезапуска сервера."
+    },
+    rollbackConfirm: {
+      title: "Откатить последнее обновление?",
+      note: "Будут восстановлены прежние файлы. Вступит в силу после перезапуска сервера."
+    },
+    restartConfirm: {
+      title: "Перезапустить сервер?",
+      note: "Игроки на сервере будут отключены на время перезапуска."
+    },
+    job: {
+      Running: "Обновление модов…",
+      Succeeded: "Моды обновлены. Перезапустите сервер, чтобы применить.",
+      Failed: "Обновление не удалось"
+    },
+    itemState: {
+      Queued: "В очереди",
+      Downloading: "Скачивание",
+      Verifying: "Проверка",
+      Staged: "Готов",
+      Installed: "Установлен",
+      Failed: "Ошибка"
+    },
+    toast: {
+      updated_one: "Обновлён {{count}} мод. Перезапустите сервер.",
+      updated_few: "Обновлено {{count}} мода. Перезапустите сервер.",
+      updated_many: "Обновлено {{count}} модов. Перезапустите сервер.",
+      updated_other: "Обновлено {{count}} мода. Перезапустите сервер.",
+      rolledBack: "Восстановлено файлов: {{count}}. Перезапустите сервер.",
+      restarted: "Сервер перезапущен."
+    },
+    errors: {
+      load: "Не удалось загрузить моды.",
+      update: "Не удалось обновить моды.",
+      rollback: "Не удалось откатить.",
+      restart: "Не удалось перезапустить сервер.",
+      pin: "Не удалось изменить закрепление."
     }
   },
   logs: {
