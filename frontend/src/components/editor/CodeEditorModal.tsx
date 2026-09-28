@@ -1,4 +1,4 @@
-import { useState, useMemo } from "react";
+import { useCallback, useState, useMemo } from "react";
 import CodeMirror from "@uiw/react-codemirror";
 import { vscodeDark } from "@uiw/codemirror-theme-vscode";
 import { Save, Check, X, FileCode, ExternalLink } from "lucide-react";
@@ -48,12 +48,14 @@ export default function CodeEditorModal({
 
   const editorExtensions = useMemo(() => buildEditorExtensions(langExtension), [langExtension]);
 
-  if (!isOpen) return null;
-
-  const handleChange = (val: string) => {
+  // Must keep its identity across renders: @uiw/react-codemirror reconfigures the editor whenever
+  // onChange changes, which closes the search panel. The file manager re-renders every few seconds.
+  const handleChange = useCallback((val: string) => {
     setCode(val);
     setIsSaved(false);
-  };
+  }, []);
+
+  if (!isOpen) return null;
 
   const handleSave = async () => {
     setIsSaving(true);

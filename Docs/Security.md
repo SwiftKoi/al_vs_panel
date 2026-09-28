@@ -40,6 +40,9 @@ Security controls:
 - **Bounded Stream Guard**: Restricts max size on text loads and multipart uploads using a counting stream wrapper (`BoundedStream`), throwing `FileTooLargeException` if limits are exceeded.
 - **Zip-Slip Boundary Checks**: Iterates through archive member targets, verifying they resolve strictly within the target extraction directory boundary.
 - **Feedback Loops Prevention**: Excludes the target archive itself from walking directory contents during compression to prevent infinite growing loops.
+- **Hidden internal folders**: `.trash` and `.panel-tmp` are hidden from listings and search; the C# path validation rejects them as a first segment and the helper refuses them, so they are only reachable through the trash and download-archive endpoints.
+- **Inline image previews**: `download?inline=true` is limited to raster types (png, jpg, jpeg, gif, webp, bmp, ico; anything else gets 415) and is served with its exact content type, `Content-Disposition: inline`, and `Content-Security-Policy: default-src 'none'; img-src 'self'; sandbox`. SVG is deliberately excluded because it can carry script; SVGs are only downloaded or opened as text.
+- **Live-server guard**: changes under a root's `ProtectedPaths` (world saves, mods, configs) require an explicit acknowledgement in the UI while the game server is online. This is a UI safeguard against accidents, not an authorization boundary.
 
 ## Automation API
 

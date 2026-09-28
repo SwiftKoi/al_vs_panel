@@ -100,7 +100,8 @@ export default function EditorPage() {
     }
   }, [activeTab?.id, activeTab?.content, loadTabContent]);
 
-  const handleTabChange = (val: string) => {
+  // Stable identity keeps @uiw/react-codemirror from reconfiguring (and closing search) on re-render.
+  const handleTabChange = useCallback((val: string) => {
     if (!activeTabId) return;
     setError(null);
     setTabs((prev) => {
@@ -110,7 +111,7 @@ export default function EditorPage() {
       saveStoredTabs(updated);
       return updated;
     });
-  };
+  }, [activeTabId]);
 
   const handleSelectTab = (id: string) => {
     setActiveId(id);
