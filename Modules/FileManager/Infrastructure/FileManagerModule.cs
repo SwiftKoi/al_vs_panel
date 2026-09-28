@@ -19,9 +19,11 @@ public static class FileManagerModule
             .Validate(options => options.MaximumTextFileSizeBytes > 0, "MaximumTextFileSizeBytes must be positive.")
             .Validate(options => options.MaximumArchiveSizeBytes > 0, "MaximumArchiveSizeBytes must be positive.")
             .Validate(options => options.MaximumListingEntries > 0, "MaximumListingEntries must be positive.")
+            .Validate(options => options.MaximumSearchResults > 0, "MaximumSearchResults must be positive.")
             .Validate(options => options.MaximumArchiveEntries > 0, "MaximumArchiveEntries must be positive.")
             .Validate(options => options.MaximumConcurrentOperations > 0, "MaximumConcurrentOperations must be positive.")
             .Validate(options => options.OperationTimeoutMinutes > 0, "OperationTimeoutMinutes must be positive.")
+            .Validate(options => options.TrashRetentionDays > 0, "TrashRetentionDays must be positive.")
             .Validate(options => options.Instances != null, "Instances configuration is missing.")
             .Validate(options => 
             {

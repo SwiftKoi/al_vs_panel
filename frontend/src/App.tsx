@@ -12,10 +12,16 @@ import AnalyticsPage from "@/pages/AnalyticsPage";
 import LogsPage from "@/pages/LogsPage";
 import SettingsPage from "@/pages/SettingsPage";
 import { ServerProvider } from "@/context/ServerContext";
+import { ToastProvider } from "@/context/ToastContext";
+import { UploadProvider } from "@/context/UploadContext";
+import UploadQueuePanel from "@/components/file-manager/UploadQueuePanel";
 
 function AuthenticatedApp({ onLogout }: { onLogout: () => void }) {
   return (
     <ServerProvider>
+      <ToastProvider>
+      {/* Uploads live above the routes so they keep running when you leave the file manager. */}
+      <UploadProvider>
       <AppShell onLogout={onLogout}>
         <Routes>
           <Route path="/" element={<DashboardPage />} />
@@ -28,6 +34,9 @@ function AuthenticatedApp({ onLogout }: { onLogout: () => void }) {
           <Route path="*" element={<Navigate to="/" replace />} />
         </Routes>
       </AppShell>
+      <UploadQueuePanel />
+      </UploadProvider>
+      </ToastProvider>
     </ServerProvider>
   );
 }

@@ -1,4 +1,4 @@
-import { Archive, Download, Edit, Edit3, FolderPlus, Move, Package, Trash2, Upload } from "lucide-react";
+import { Archive, Download, Edit, Edit3, FolderPlus, FolderUp, Move, Package, Trash2, Upload } from "lucide-react";
 import { useTranslation } from "react-i18next";
 import type { FileItem } from "@/components/file-manager/types";
 import Button from "@/components/ui/Button";
@@ -6,6 +6,7 @@ import Button from "@/components/ui/Button";
 export default function FileManagerActions({
   selectedItems,
   onUpload,
+  onUploadFolder,
   onMkdir,
   onDownload,
   onEdit,
@@ -13,10 +14,12 @@ export default function FileManagerActions({
   onMove,
   onUnpack,
   onPack,
-  onDelete
+  onDelete,
+  readOnly = false
 }: {
   selectedItems: FileItem[];
   onUpload: () => void;
+  onUploadFolder: () => void;
   onMkdir: () => void;
   onDownload: () => void;
   onEdit: () => void;
@@ -25,6 +28,8 @@ export default function FileManagerActions({
   onUnpack: () => void;
   onPack: () => void;
   onDelete: () => void;
+  /** Read-only roots only offer download and view; write actions are hidden. */
+  readOnly?: boolean;
 }) {
   const { t } = useTranslation();
   const secondaryClass = "flex items-center gap-1.5 bg-slate-950/30 hover:bg-red-950/15 text-slate-200 border border-red-950/45 px-3 py-1.5 rounded-md transition-all duration-200 disabled:opacity-40 disabled:cursor-not-allowed shrink-0 cursor-pointer font-semibold";
@@ -34,6 +39,7 @@ export default function FileManagerActions({
 
   return (
     <div className="flex items-center gap-1.5 overflow-x-auto text-xs pb-1 select-none">
+      {!readOnly && (
       <Button
         variant="primary"
         onClick={onUpload}
@@ -42,13 +48,23 @@ export default function FileManagerActions({
         <Upload size={14} />
         <span>{t("fileManager.upload")}</span>
       </Button>
+      )}
+      {!readOnly && (
+      <>
+
+      <button onClick={onUploadFolder} className={secondaryClass}>
+        <FolderUp size={14} className="text-[#e04444]" />
+        <span>{t("fileManager.uploadFolder")}</span>
+      </button>
 
       <button onClick={onMkdir} className={secondaryClass}>
         <FolderPlus size={14} className="text-[#ffd8a0]" />
         <span>{t("fileManager.newFolder")}</span>
       </button>
+      </>
+      )}
 
-      <button onClick={onDownload} disabled={!selectedItem || selectedItem.isFolder} className={secondaryClass}>
+      <button onClick={onDownload} disabled={!hasSelection} className={secondaryClass}>
         <Download size={14} className="text-[#e04444]" />
         <span>{t("fileManager.download")}</span>
       </button>
@@ -58,6 +74,8 @@ export default function FileManagerActions({
         <span>{t("fileManager.edit")}</span>
       </button>
 
+      {!readOnly && (
+      <>
       <button onClick={onRename} disabled={!selectedItem} className={secondaryClass}>
         <Edit3 size={14} className="text-[#e04444]" />
         <span>{t("fileManager.rename")}</span>
@@ -87,6 +105,13 @@ export default function FileManagerActions({
         <Trash2 size={14} />
         <span>{t("fileManager.delete")}</span>
       </Button>
+      </>
+      )}
+      {readOnly && (
+        <span className="ml-auto shrink-0 rounded border border-slate-600/50 px-2 py-1 text-[11px] text-slate-400">
+          {t("fileManager.readOnly")}
+        </span>
+      )}
     </div>
   );
 }

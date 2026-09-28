@@ -353,17 +353,131 @@ public sealed class FileManagerServiceTests
         var tracker = new BackgroundOperationTracker(Options.Create(new FileManagerOptions { MaximumConcurrentOperations = 1 }));
         var gate = new TaskCompletionSource();
 
-        tracker.StartTracking("first", _ => gate.Task);
+        tracker.StartTracking("first", null, (_, _) => gate.Task);
 
-        Assert.Throws<TooManyOperationsException>(() => tracker.StartTracking("second", _ => Task.CompletedTask));
+        Assert.Throws<TooManyOperationsException>(() => tracker.StartTracking("second", null, (_, _) => Task.CompletedTask));
         gate.SetResult();
+    }
+
+    [Fact]
+    public async Task ArchiveAsync_reports_progress_and_target_folder()
+    {
+        var gate = new TaskCompletionSource();
+        var repo = new FakeFileRepository([])
+        {
+            OnArchive = async (progress, _) =>
+            {
+                progress?.Report(new OperationProgress(2, 5, 200, 500));
+                await gate.Task;
+            }
+        };
+        var service = CreateService(repo);
+
+        var taskId = await service.ArchiveAsync("server-1", "data", ["Mods"], "Backups/mods.zip", CancellationToken.None);
+        await Task.Delay(50);
+        var running = service.GetOperationStatus(taskId);
+        gate.SetResult();
+        await WaitForCompletionAsync(service, taskId);
+
+        Assert.Equal(new OperationProgress(2, 5, 200, 500), running?.Progress);
+        Assert.Equal(new OperationTarget("server-1", "data", "Backups"), running?.Target);
+        Assert.Contains(service.GetRecentOperations(), op => op.TaskId == taskId);
+    }
+
+    [Fact]
+    public async Task CancelOperation_marks_a_running_operation_cancelled()
+    {
+        var repo = new FakeFileRepository([])
+        {
+            OnArchive = (_, ct) => Task.Delay(Timeout.Infinite, ct)
+        };
+        var service = CreateService(repo);
+
+        var taskId = await service.ArchiveAsync("server-1", "data", ["Mods"], "mods.zip", CancellationToken.None);
+        Assert.True(service.CancelOperation(taskId));
+        await WaitForCompletionAsync(service, taskId);
+
+        Assert.Equal("Cancelled", service.GetOperationStatus(taskId)?.Status);
+        Assert.False(service.CancelOperation(taskId));
+    }
+
+    [Fact]
+    public async Task SearchAsync_passes_the_recursive_flag_and_returns_matches()
+    {
+        var repo = new FakeFileRepository([new("serverconfig.json", false, 10, DateTimeOffset.UtcNow), new("Mods", true, 0, DateTimeOffset.UtcNow)]);
+        var service = CreateService(repo);
+
+        var response = await service.SearchAsync("server-1", "data", "", "  CONFIG ", recursive: true, CancellationToken.None);
+
+        Assert.True(repo.LastRecursive);
+        Assert.Equal("serverconfig.json", Assert.Single(response.Results).Path);
+    }
+
+    [Theory]
+    [InlineData("")]
+    [InlineData("   ")]
+    [InlineData("a\nb")]
+    public async Task SearchAsync_rejects_empty_or_control_text(string query)
+    {
+        var service = CreateService(new FakeFileRepository([]));
+
+        await Assert.ThrowsAsync<InvalidFileOperationException>(() =>
+            service.SearchAsync("server-1", "data", "", query, recursive: false, CancellationToken.None));
+    }
+
+    [Fact]
+    public async Task UploadFileAsync_passes_createFolders_for_folder_uploads()
+    {
+        var repo = new FakeFileRepository([]);
+        var service = CreateService(repo);
+
+        await service.UploadFileAsync("server-1", "data", "Mods/pack/a.json", new MemoryStream([1]), CancellationToken.None, createFolders: true);
+
+        Assert.True(repo.LastCreateParents);
+    }
+
+    [Fact]
+    public async Task Download_archive_is_built_then_streamed_and_deleted()
+    {
+        var repo = new FakeFileRepository([], [7, 7]);
+        var service = CreateService(repo);
+
+        var prepared = await service.PrepareDownloadArchiveAsync("server-1", "data", ["Mods", "serverconfig.json"], CancellationToken.None);
+        await WaitForCompletionAsync(service, prepared.TaskId);
+        using var output = new MemoryStream();
+        await service.DownloadArchiveAsync("server-1", "data", prepared.ArchiveId, output, CancellationToken.None);
+
+        Assert.Equal(prepared.ArchiveId, repo.LastArchiveId);
+        Assert.Equal($".panel-tmp/{prepared.ArchiveId}.zip", repo.LastRelativePath);
+        Assert.Equal(prepared.ArchiveId, repo.DeletedArchiveId);
+        Assert.Equal(new byte[] { 7, 7 }, output.ToArray());
+    }
+
+    [Theory]
+    [InlineData("../../etc/passwd")]
+    [InlineData("ABC")]
+    public async Task DownloadArchiveAsync_rejects_invalid_ids(string archiveId)
+    {
+        var service = CreateService(new FakeFileRepository([]));
+
+        await Assert.ThrowsAsync<InvalidRelativePathException>(() =>
+            service.DownloadArchiveAsync("server-1", "data", archiveId, Stream.Null, CancellationToken.None));
+    }
+
+    [Fact]
+    public async Task Internal_tmp_folder_is_not_reachable_through_paths()
+    {
+        var service = CreateService(new FakeFileRepository([]));
+
+        await Assert.ThrowsAsync<InvalidRelativePathException>(() =>
+            service.GetDirectoryListingAsync("server-1", "data", ".panel-tmp", CancellationToken.None));
     }
 
     private static async Task WaitForCompletionAsync(FileManagerService service, string taskId)
     {
         for (var attempt = 0; attempt < 100; attempt++)
         {
-            if (service.GetOperationStatus(taskId)?.Status is "Completed" or "Failed")
+            if (service.GetOperationStatus(taskId)?.Status is "Completed" or "Failed" or "Cancelled")
             {
                 return;
             }
@@ -443,15 +557,77 @@ public sealed class FileManagerServiceTests
     }
 
     [Fact]
-    public async Task DeleteAsync_delegates_to_repository_when_writable()
+    public async Task DeleteAsync_moves_to_trash_by_default()
     {
         var repo = new FakeFileRepository([]);
         var service = CreateService(repo);
 
-        await service.DeleteAsync("server-1", "data", "sub/file.txt", CancellationToken.None);
+        var trashed = await service.DeleteAsync("server-1", "data", "Saves/world.vcdbs", permanent: false, CancellationToken.None);
 
-        Assert.Equal("data-files", repo.LastOperation);
-        Assert.Equal("sub/file.txt", repo.LastRelativePath);
+        Assert.Equal("Saves/world.vcdbs", repo.LastTrashedPath);
+        Assert.Null(repo.LastDeletedPath);
+        Assert.Equal(new FileManagerOptions().TrashRetentionDays, repo.LastRetentionDays);
+        Assert.Equal("Saves/world.vcdbs", trashed?.OriginalPath);
+    }
+
+    [Fact]
+    public async Task DeleteAsync_deletes_permanently_only_when_asked()
+    {
+        var repo = new FakeFileRepository([]);
+        var service = CreateService(repo);
+
+        var trashed = await service.DeleteAsync("server-1", "data", "sub/file.txt", permanent: true, CancellationToken.None);
+
+        Assert.Null(trashed);
+        Assert.Equal("sub/file.txt", repo.LastDeletedPath);
+        Assert.Null(repo.LastTrashedPath);
+    }
+
+    [Theory]
+    [InlineData("")]
+    [InlineData("/")]
+    public async Task DeleteAsync_refuses_the_root_itself(string path)
+    {
+        var service = CreateService(new FakeFileRepository([]));
+
+        await Assert.ThrowsAsync<InvalidRelativePathException>(() =>
+            service.DeleteAsync("server-1", "data", path, permanent: false, CancellationToken.None));
+    }
+
+    [Theory]
+    [InlineData(".trash")]
+    [InlineData(".trash/123-4/item")]
+    public async Task Paths_inside_the_trash_are_rejected(string path)
+    {
+        var service = CreateService(new FakeFileRepository([]));
+
+        await Assert.ThrowsAsync<InvalidRelativePathException>(() =>
+            service.DeleteAsync("server-1", "data", path, permanent: true, CancellationToken.None));
+        await Assert.ThrowsAsync<InvalidRelativePathException>(() =>
+            service.MoveAsync("server-1", "data", "Saves", path, CancellationToken.None));
+    }
+
+    [Theory]
+    [InlineData("../etc")]
+    [InlineData("abc")]
+    [InlineData("")]
+    public async Task RestoreTrashAsync_rejects_invalid_ids(string id)
+    {
+        var service = CreateService(new FakeFileRepository([]));
+
+        await Assert.ThrowsAsync<InvalidRelativePathException>(() =>
+            service.RestoreTrashAsync("server-1", "data", id, CancellationToken.None));
+    }
+
+    [Fact]
+    public async Task Trash_operations_require_a_writable_root()
+    {
+        var service = CreateService(new FakeFileRepository([]));
+
+        await Assert.ThrowsAsync<PermissionDeniedException>(() =>
+            service.ListTrashAsync("server-1", "server", CancellationToken.None));
+        await Assert.ThrowsAsync<PermissionDeniedException>(() =>
+            service.DeleteAsync("server-1", "server", "file.txt", permanent: false, CancellationToken.None));
     }
 
     [Fact]
@@ -460,7 +636,7 @@ public sealed class FileManagerServiceTests
         var tracker = new BackgroundOperationTracker();
         var tcs = new TaskCompletionSource();
 
-        var taskId = tracker.StartTracking("Test task", async ct => await tcs.Task);
+        var taskId = tracker.StartTracking("Test task", null, async (ct, _) => await tcs.Task);
 
         var statusRunning = tracker.GetStatus(taskId);
         Assert.NotNull(statusRunning);
@@ -483,7 +659,7 @@ public sealed class FileManagerServiceTests
     {
         var tracker = new BackgroundOperationTracker();
 
-        var taskId = tracker.StartTracking("Faulty task", ct => throw new InvalidOperationException("Failed task error."));
+        var taskId = tracker.StartTracking("Faulty task", null, (ct, _) => throw new InvalidOperationException("Failed task error."));
         await Task.Delay(50); // allow exception to bubble
 
         var statusFailed = tracker.GetStatus(taskId);
@@ -561,6 +737,32 @@ public sealed class FileManagerServiceTests
             return Task.FromResult(new DirectoryEntries(entries.Take(maximumEntries).ToList(), entries.Count > maximumEntries, 0));
         }
 
+        public bool? LastRecursive { get; private set; }
+
+        public Task<SearchResponseDto> SearchAsync(
+            string operation,
+            string relativePath,
+            string query,
+            bool recursive,
+            int maximumResults,
+            CancellationToken cancellationToken)
+        {
+            LastOperation = operation;
+            LastRelativePath = relativePath;
+            LastRecursive = recursive;
+            var results = entries
+                .Where(e => e.Name.Contains(query, StringComparison.OrdinalIgnoreCase))
+                .Select(e => new SearchResultDto(relativePath.Length == 0 ? e.Name : $"{relativePath}/{e.Name}", e.Name, e.IsFolder, e.Size, e.Modified))
+                .ToList();
+            return Task.FromResult(new SearchResponseDto(results, false));
+        }
+
+        public Task<FolderSizeDto> MeasureAsync(string operation, string relativePath, CancellationToken cancellationToken)
+        {
+            LastRelativePath = relativePath;
+            return Task.FromResult(new FolderSizeDto(123, 4, 1, true));
+        }
+
         public Task<FileEntryDto?> StatAsync(
             string operation,
             string relativePath,
@@ -590,12 +792,31 @@ public sealed class FileManagerServiceTests
             }
         }
 
+        public bool LastCreateParents { get; private set; }
+        public string? LastArchiveId { get; private set; }
+        public string? DeletedArchiveId { get; private set; }
+
+        public Task ArchiveForDownloadAsync(string operation, string archiveId, IReadOnlyList<string> sourcePaths, IProgress<OperationProgress>? progress, CancellationToken cancellationToken)
+        {
+            LastArchiveId = archiveId;
+            LastSourcePaths = sourcePaths;
+            return Task.CompletedTask;
+        }
+
+        public Task DeleteDownloadArchiveAsync(string operation, string archiveId, CancellationToken cancellationToken)
+        {
+            DeletedArchiveId = archiveId;
+            return Task.CompletedTask;
+        }
+
         public async Task WriteAsync(
             string operation,
             string relativePath,
             Stream source,
-            CancellationToken cancellationToken)
+            CancellationToken cancellationToken,
+            bool createParents = false)
         {
+            LastCreateParents = createParents;
             LastOperation = operation;
             LastRelativePath = relativePath;
             using var ms = new MemoryStream();
@@ -626,22 +847,45 @@ public sealed class FileManagerServiceTests
             return Task.CompletedTask;
         }
 
+        public string? LastTrashedPath { get; private set; }
+        public string? LastDeletedPath { get; private set; }
+        public int? LastRetentionDays { get; private set; }
+
+        public Task<TrashEntryDto> TrashAsync(string operation, string relativePath, int retentionDays, CancellationToken cancellationToken)
+        {
+            LastOperation = operation;
+            LastTrashedPath = relativePath;
+            LastRetentionDays = retentionDays;
+            return Task.FromResult(new TrashEntryDto("1-1", relativePath, relativePath.Split('/')[^1], false, 1, DateTimeOffset.UtcNow));
+        }
+
+        public Task<IReadOnlyList<TrashEntryDto>> ListTrashAsync(string operation, int retentionDays, CancellationToken cancellationToken) =>
+            Task.FromResult<IReadOnlyList<TrashEntryDto>>([]);
+
+        public Task<TrashEntryDto> RestoreTrashAsync(string operation, string trashId, CancellationToken cancellationToken) =>
+            Task.FromResult(new TrashEntryDto(trashId, "restored", "restored", false, 1, DateTimeOffset.UtcNow));
+
+        public Task PurgeTrashAsync(string operation, string? trashId, CancellationToken cancellationToken) => Task.CompletedTask;
+
         public Task DeleteAsync(string operation, string relativePath, CancellationToken cancellationToken)
         {
+            LastDeletedPath = relativePath;
             LastOperation = operation;
             LastRelativePath = relativePath;
             return Task.CompletedTask;
         }
 
-        public Task ArchiveAsync(string operation, IReadOnlyList<string> sourcePaths, string zipPath, CancellationToken cancellationToken)
+        public Func<IProgress<OperationProgress>?, CancellationToken, Task>? OnArchive { get; init; }
+
+        public Task ArchiveAsync(string operation, IReadOnlyList<string> sourcePaths, string zipPath, IProgress<OperationProgress>? progress, CancellationToken cancellationToken)
         {
             LastOperation = operation;
             LastSourcePaths = sourcePaths;
             LastDestinationPath = zipPath;
-            return Task.CompletedTask;
+            return OnArchive?.Invoke(progress, cancellationToken) ?? Task.CompletedTask;
         }
 
-        public Task ExtractAsync(string operation, string zipPath, string destPath, long maximumExtractedBytes, int maximumEntries, CancellationToken cancellationToken)
+        public Task ExtractAsync(string operation, string zipPath, string destPath, long maximumExtractedBytes, int maximumEntries, IProgress<OperationProgress>? progress, CancellationToken cancellationToken)
         {
             LastMaximumExtractedBytes = maximumExtractedBytes;
             LastOperation = operation;

@@ -152,3 +152,65 @@ export const api = {
   deleteUser: (id: string) =>
     apiRequest<void>(`/api/users/${id}`, { method: "DELETE" })
 };
+
+export type UploadProgress = { loaded: number; total: number };
+
+/**
+ * Sends multipart form data with XMLHttpRequest, because fetch cannot report upload
+ * progress. Uses the same CSRF token handling (and single stale-token retry) as
+ * apiRequest. Aborting the signal rejects with an AbortError.
+ */
+export async function uploadWithProgress<T>(
+  path: string,
+  body: FormData,
+  options: { onProgress?: (progress: UploadProgress) => void; onUploaded?: () => void; signal?: AbortSignal } = {},
+  isRetry = false
+): Promise<T> {
+  const usedCachedToken = csrfToken !== undefined;
+  const token = await getCsrfToken();
+
+  const result = await new Promise<{ status: number; text: string }>((resolve, reject) => {
+    const xhr = new XMLHttpRequest();
+    xhr.open("POST", path);
+    xhr.withCredentials = true;
+    xhr.setRequestHeader("X-CSRF-TOKEN", token);
+    xhr.upload.onprogress = (event) => {
+      if (event.lengthComputable) options.onProgress?.({ loaded: event.loaded, total: event.total });
+    };
+    // All bytes are sent; the server is still writing them to disk.
+    xhr.upload.onload = () => options.onUploaded?.();
+    xhr.onload = () => resolve({ status: xhr.status, text: xhr.responseText });
+    xhr.onerror = () => reject(new ApiError(0, "Network error while uploading."));
+    xhr.onabort = () => reject(new DOMException("Upload cancelled.", "AbortError"));
+    if (options.signal) {
+      if (options.signal.aborted) {
+        reject(new DOMException("Upload cancelled.", "AbortError"));
+        return;
+      }
+      options.signal.addEventListener("abort", () => xhr.abort(), { once: true });
+    }
+    xhr.send(body);
+  });
+
+  if (result.status >= 200 && result.status < 300) {
+    return (result.text ? JSON.parse(result.text) : undefined) as T;
+  }
+
+  if (usedCachedToken && !isRetry && result.status === 400) {
+    invalidateCsrfToken();
+    return uploadWithProgress<T>(path, body, options, true);
+  }
+  if (result.status === 401) {
+    invalidateCsrfToken();
+    window.dispatchEvent(new Event("auth:unauthorized"));
+  }
+
+  let message: string | undefined;
+  try {
+    const problem = JSON.parse(result.text) as ProblemDetails;
+    message = problem.detail || problem.title;
+  } catch {
+    // Keep the status-based message for non-JSON responses.
+  }
+  throw new ApiError(result.status, message ?? `Upload failed (HTTP ${result.status}).`);
+}

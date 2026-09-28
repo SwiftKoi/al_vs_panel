@@ -336,6 +336,21 @@ public sealed class AutomationApiEndpointTests
 
         public IReadOnlyList<FileRootDto> GetRoots(string serverId) => throw new NotSupportedException();
 
+        public Task<FolderSizeDto> MeasureAsync(string serverId, string rootId, string relativePath, CancellationToken cancellationToken) =>
+            throw new NotSupportedException();
+
+        public Task<SearchResponseDto> SearchAsync(
+            string serverId,
+            string rootId,
+            string relativePath,
+            string query,
+            bool recursive,
+            CancellationToken cancellationToken) => throw new NotSupportedException();
+
+        public IReadOnlyList<TrackedOperationDto> GetRecentOperations() => throw new NotSupportedException();
+
+        public bool CancelOperation(string taskId) => throw new NotSupportedException();
+
         public Task<FileEntryDto> GetFileInfoAsync(
             string serverId,
             string rootId,
@@ -378,12 +393,22 @@ public sealed class AutomationApiEndpointTests
             await destination.WriteAsync(Encoding.UTF8.GetBytes(DownloadContent), cancellationToken);
         }
 
+        public Task<DownloadArchiveDto> PrepareDownloadArchiveAsync(string serverId, string rootId, IReadOnlyList<string> sourcePaths, CancellationToken cancellationToken) =>
+            throw new NotSupportedException();
+
+        public Task DownloadArchiveAsync(string serverId, string rootId, string archiveId, Stream destination, CancellationToken cancellationToken) =>
+            throw new NotSupportedException();
+
+        public Task EnsureDownloadArchiveAsync(string serverId, string rootId, string archiveId, CancellationToken cancellationToken) =>
+            throw new NotSupportedException();
+
         public async Task UploadFileAsync(
             string serverId,
             string rootId,
             string relativePath,
             Stream source,
-            CancellationToken cancellationToken)
+            CancellationToken cancellationToken,
+            bool createFolders = false)
         {
             ThrowIfRequested();
             Record(serverId, rootId, relativePath);
@@ -425,11 +450,21 @@ public sealed class AutomationApiEndpointTests
             string destinationPath,
             CancellationToken cancellationToken) => throw new NotSupportedException();
 
-        public Task DeleteAsync(
+        public Task<TrashEntryDto?> DeleteAsync(
             string serverId,
             string rootId,
             string relativePath,
+            bool permanent,
             CancellationToken cancellationToken) => throw new NotSupportedException();
+
+        public Task<IReadOnlyList<TrashEntryDto>> ListTrashAsync(string serverId, string rootId, CancellationToken cancellationToken) =>
+            throw new NotSupportedException();
+
+        public Task<TrashEntryDto> RestoreTrashAsync(string serverId, string rootId, string trashId, CancellationToken cancellationToken) =>
+            throw new NotSupportedException();
+
+        public Task PurgeTrashAsync(string serverId, string rootId, string? trashId, CancellationToken cancellationToken) =>
+            throw new NotSupportedException();
 
         public Task<string> ArchiveAsync(
             string serverId,

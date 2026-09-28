@@ -17,6 +17,7 @@ public sealed record RenameRequest(string Path, string NewName);
 public sealed record MoveRequest(string SourcePath, string DestinationPath);
 public sealed record CompressRequest(IReadOnlyList<string> SourcePaths, string DestinationZipPath);
 public sealed record ExtractRequest(string ZipPath, string DestinationDirectoryPath);
+public sealed record DownloadArchiveRequest(IReadOnlyList<string> Paths);
 
 public static class FileManagerEndpoints
 {
@@ -41,16 +42,68 @@ public static class FileManagerEndpoints
             cancellationToken));
     }
 
-    public static async Task<IResult> DownloadAsync(
+    public static async Task<IResult> SearchAsync(
         string serverId,
         string root,
         IFileManagerService service,
         CancellationToken cancellationToken,
-        string path)
+        string? q = null,
+        string? path = null,
+        bool recursive = false)
+    {
+        if (string.IsNullOrWhiteSpace(q))
+        {
+            return Results.BadRequest("Search text (q) is required.");
+        }
+
+        return await TranslateAsync(() => service.SearchAsync(
+            serverId, root, path ?? string.Empty, q, recursive, cancellationToken));
+    }
+
+    public static async Task<IResult> MeasureAsync(
+        string serverId,
+        string root,
+        IFileManagerService service,
+        CancellationToken cancellationToken,
+        string? path = null)
+    {
+        return await TranslateAsync(() => service.MeasureAsync(serverId, root, path ?? string.Empty, cancellationToken));
+    }
+
+    // Raster formats only: they cannot run script. SVG is deliberately excluded because
+    // opened directly it would execute in the panel's origin.
+    private static readonly Dictionary<string, string> PreviewImageTypes = new(StringComparer.OrdinalIgnoreCase)
+    {
+        [".png"] = "image/png",
+        [".jpg"] = "image/jpeg",
+        [".jpeg"] = "image/jpeg",
+        [".gif"] = "image/gif",
+        [".webp"] = "image/webp",
+        [".bmp"] = "image/bmp",
+        [".ico"] = "image/x-icon"
+    };
+
+    public static async Task<IResult> DownloadAsync(
+        string serverId,
+        string root,
+        HttpResponse response,
+        IFileManagerService service,
+        CancellationToken cancellationToken,
+        string path,
+        bool inline = false)
     {
         if (string.IsNullOrEmpty(path))
         {
             return Results.BadRequest("Path is required.");
+        }
+
+        string? previewType = null;
+        if (inline && !PreviewImageTypes.TryGetValue(Path.GetExtension(path), out previewType))
+        {
+            return Results.Problem(
+                title: "Preview not supported",
+                detail: "Only PNG, JPEG, GIF, WebP, BMP and ICO images can be previewed.",
+                statusCode: StatusCodes.Status415UnsupportedMediaType);
         }
 
         return await TranslateAsync(async () =>
@@ -60,6 +113,19 @@ public static class FileManagerEndpoints
             // error response — the browser would save an empty or truncated file.
             var file = await service.GetFileInfoAsync(serverId, root, path, cancellationToken);
             var fileName = file.Name;
+
+            if (previewType is not null)
+            {
+                // Inline image for the preview: correct type (the gateway sends nosniff),
+                // no attachment, and a CSP that blocks everything if opened on its own.
+                response.Headers.ContentDisposition = "inline";
+                response.Headers.ContentSecurityPolicy = "default-src 'none'; img-src 'self'; sandbox";
+                response.Headers.CacheControl = "private, max-age=60";
+                return Results.Stream(async stream =>
+                {
+                    await service.DownloadFileAsync(serverId, root, path, stream, cancellationToken);
+                }, previewType);
+            }
 
             return Results.Stream(async stream =>
             {
@@ -122,7 +188,8 @@ public static class FileManagerEndpoints
         IFileManagerService service,
         IOptions<FileManagerOptions> options,
         CancellationToken cancellationToken,
-        string? path = null)
+        string? path = null,
+        bool createFolders = false)
     {
         // The antiforgery middleware records the validation outcome on the request.
         // Touching the form without consulting it throws InvalidOperationException
@@ -187,7 +254,7 @@ public static class FileManagerEndpoints
                 // Every file part is written; each one is size-limited on its own.
                 await TranslateAsync(async () =>
                 {
-                    await service.UploadFileAsync(serverId, root, relativePath, body, cancellationToken);
+                    await service.UploadFileAsync(serverId, root, relativePath, body, cancellationToken, createFolders);
                     return Results.Ok();
                 });
                 uploaded++;
@@ -259,7 +326,8 @@ public static class FileManagerEndpoints
         string root,
         IFileManagerService service,
         CancellationToken cancellationToken,
-        string path)
+        string path,
+        bool permanent = false)
     {
         if (string.IsNullOrEmpty(path))
         {
@@ -268,7 +336,88 @@ public static class FileManagerEndpoints
 
         return await TranslateAsync(async () =>
         {
-            await service.DeleteAsync(serverId, root, path, cancellationToken);
+            var trashed = await service.DeleteAsync(serverId, root, path, permanent, cancellationToken);
+            return trashed is null ? Results.Ok() : Results.Ok(trashed);
+        });
+    }
+
+    public static async Task<IResult> PrepareDownloadArchiveAsync(
+        string serverId,
+        string root,
+        DownloadArchiveRequest request,
+        IFileManagerService service,
+        CancellationToken cancellationToken)
+    {
+        if (request?.Paths is not { Count: > 0 })
+        {
+            return Results.BadRequest("Paths are required.");
+        }
+
+        return await TranslateAsync(() => service.PrepareDownloadArchiveAsync(serverId, root, request.Paths, cancellationToken));
+    }
+
+    public static async Task<IResult> DownloadArchiveAsync(
+        string serverId,
+        string root,
+        string archiveId,
+        IFileManagerService service,
+        CancellationToken cancellationToken,
+        string? name = null)
+    {
+        var fileName = string.IsNullOrWhiteSpace(name) ? "download.zip" : Path.GetFileName(name);
+        return await TranslateAsync(async () =>
+        {
+            // Checked before streaming so an expired archive is a 404, not an empty file.
+            await service.EnsureDownloadArchiveAsync(serverId, root, archiveId, cancellationToken);
+            return Results.Stream(
+                async stream => await service.DownloadArchiveAsync(serverId, root, archiveId, stream, cancellationToken),
+                "application/zip",
+                fileDownloadName: fileName);
+        });
+    }
+
+    public static async Task<IResult> ListTrashAsync(
+        string serverId,
+        string root,
+        IFileManagerService service,
+        CancellationToken cancellationToken)
+    {
+        return await TranslateAsync(() => service.ListTrashAsync(serverId, root, cancellationToken));
+    }
+
+    public static async Task<IResult> RestoreTrashAsync(
+        string serverId,
+        string root,
+        string trashId,
+        IFileManagerService service,
+        CancellationToken cancellationToken)
+    {
+        return await TranslateAsync(() => service.RestoreTrashAsync(serverId, root, trashId, cancellationToken));
+    }
+
+    public static async Task<IResult> PurgeTrashEntryAsync(
+        string serverId,
+        string root,
+        string trashId,
+        IFileManagerService service,
+        CancellationToken cancellationToken)
+    {
+        return await TranslateAsync(async () =>
+        {
+            await service.PurgeTrashAsync(serverId, root, trashId, cancellationToken);
+            return Results.Ok();
+        });
+    }
+
+    public static async Task<IResult> EmptyTrashAsync(
+        string serverId,
+        string root,
+        IFileManagerService service,
+        CancellationToken cancellationToken)
+    {
+        return await TranslateAsync(async () =>
+        {
+            await service.PurgeTrashAsync(serverId, root, null, cancellationToken);
             return Results.Ok();
         });
     }
@@ -328,6 +477,18 @@ public static class FileManagerEndpoints
         }
 
         return Results.Ok(operation);
+    }
+
+    public static IResult GetRecentOperations(IFileManagerService service)
+    {
+        return Results.Ok(service.GetRecentOperations());
+    }
+
+    public static IResult CancelOperation(string taskId, IFileManagerService service)
+    {
+        return service.CancelOperation(taskId)
+            ? Results.Accepted()
+            : Results.NotFound($"Operation task '{taskId}' is not running.");
     }
 
     private static async Task<IResult> TranslateAsync(Func<Task<IResult>> operation)

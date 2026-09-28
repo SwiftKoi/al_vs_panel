@@ -44,7 +44,37 @@ public sealed class FileManagerService(
         var listing = await fileRepository.ListAsync(
             root.Operation, relativePath, _options.MaximumListingEntries, cancellationToken);
 
-        return new DirectoryListingDto(relativePath, RootsOf(instance), listing.Entries, listing.Truncated, listing.Skipped);
+        return new DirectoryListingDto(
+            relativePath, RootsOf(instance), listing.Entries, listing.Truncated, listing.Skipped, _options.MaximumFileSizeBytes, _options.TrashRetentionDays);
+    }
+
+    public async Task<SearchResponseDto> SearchAsync(
+        string serverId,
+        string rootId,
+        string relativePath,
+        string query,
+        bool recursive,
+        CancellationToken cancellationToken)
+    {
+        var (_, root) = ResolveRoot(serverId, rootId);
+        ValidateRelativePath(relativePath);
+
+        query = query.Trim();
+        if (query.Length == 0 || query.Length > 200 || query.Any(char.IsControl))
+        {
+            throw new InvalidFileOperationException("Search text must be 1–200 printable characters.");
+        }
+
+        logger.LogDebug("Searching files for server {ServerId} root {RootId}", serverId, rootId);
+        return await fileRepository.SearchAsync(
+            root.Operation, relativePath, query, recursive, _options.MaximumSearchResults, cancellationToken);
+    }
+
+    public async Task<FolderSizeDto> MeasureAsync(string serverId, string rootId, string relativePath, CancellationToken cancellationToken)
+    {
+        var (_, root) = ResolveRoot(serverId, rootId);
+        ValidateRelativePath(relativePath);
+        return await fileRepository.MeasureAsync(root.Operation, relativePath, cancellationToken);
     }
 
     public async Task<FileEntryDto> GetFileInfoAsync(
@@ -85,7 +115,8 @@ public sealed class FileManagerService(
         string rootId,
         string relativePath,
         Stream source,
-        CancellationToken cancellationToken)
+        CancellationToken cancellationToken,
+        bool createFolders = false)
     {
         var root = ResolveWritableRoot(serverId, rootId);
         ValidateRelativePath(relativePath);
@@ -94,7 +125,83 @@ public sealed class FileManagerService(
         using var bounded = new BoundedStream(source, _options.MaximumFileSizeBytes);
 
         logger.LogInformation("Uploading file to server {ServerId} root {RootId}", serverId, rootId);
-        await fileRepository.WriteAsync(root.Operation, relativePath, bounded, cancellationToken);
+        await fileRepository.WriteAsync(root.Operation, relativePath, bounded, cancellationToken, createFolders);
+    }
+
+    public Task<DownloadArchiveDto> PrepareDownloadArchiveAsync(
+        string serverId,
+        string rootId,
+        IReadOnlyList<string> sourcePaths,
+        CancellationToken cancellationToken)
+    {
+        // The archive is written inside the root, so it needs a writable root.
+        var root = ResolveWritableRoot(serverId, rootId);
+        var sources = sourcePaths.Where(path => !string.IsNullOrWhiteSpace(path)).ToList();
+        if (sources.Count == 0)
+        {
+            throw new InvalidRelativePathException("At least one source path is required.");
+        }
+
+        foreach (var path in sources)
+        {
+            ValidateRelativePath(path);
+        }
+
+        var archiveId = Guid.NewGuid().ToString("N");
+        var description = sources.Count == 1
+            ? $"Preparing download of '{sources[0]}'"
+            : $"Preparing download of {sources.Count} items";
+        var taskId = backgroundOperationTracker.StartTracking(
+            description,
+            null,
+            (ct, progress) => fileRepository.ArchiveForDownloadAsync(root.Operation, archiveId, sources, progress, ct));
+
+        return Task.FromResult(new DownloadArchiveDto(taskId, archiveId));
+    }
+
+    public async Task EnsureDownloadArchiveAsync(string serverId, string rootId, string archiveId, CancellationToken cancellationToken)
+    {
+        var root = ResolveWritableRoot(serverId, rootId);
+        ValidateArchiveId(archiveId);
+        if (await fileRepository.StatAsync(root.Operation, $".panel-tmp/{archiveId}.zip", cancellationToken) is null)
+        {
+            throw new FileNotFoundException("The prepared download has expired or was already downloaded.");
+        }
+    }
+
+    public async Task DownloadArchiveAsync(
+        string serverId,
+        string rootId,
+        string archiveId,
+        Stream destination,
+        CancellationToken cancellationToken)
+    {
+        var root = ResolveWritableRoot(serverId, rootId);
+        ValidateArchiveId(archiveId);
+        try
+        {
+            await fileRepository.ReadAsync(root.Operation, $".panel-tmp/{archiveId}.zip", destination, cancellationToken);
+        }
+        finally
+        {
+            // One-off: remove it even if the client aborted. Stale leftovers are purged by the helper.
+            try
+            {
+                await fileRepository.DeleteDownloadArchiveAsync(root.Operation, archiveId, CancellationToken.None);
+            }
+            catch (Exception exception)
+            {
+                logger.LogWarning(exception, "Could not remove download archive {ArchiveId}", archiveId);
+            }
+        }
+    }
+
+    private static void ValidateArchiveId(string archiveId)
+    {
+        if (archiveId.Length != 32 || !archiveId.All(char.IsAsciiHexDigitLower))
+        {
+            throw new InvalidRelativePathException("Invalid archive id.");
+        }
     }
 
     public async Task<FileContentDto> GetTextContentAsync(
@@ -227,17 +334,63 @@ public sealed class FileManagerService(
         await fileRepository.MoveAsync(root.Operation, sourcePath, destinationPath, cancellationToken);
     }
 
-    public async Task DeleteAsync(
+    public async Task<TrashEntryDto?> DeleteAsync(
         string serverId,
         string rootId,
         string relativePath,
+        bool permanent,
         CancellationToken cancellationToken)
     {
         var root = ResolveWritableRoot(serverId, rootId);
         ValidateRelativePath(relativePath);
+        if (string.IsNullOrWhiteSpace(relativePath.Trim('/')))
+        {
+            throw new InvalidRelativePathException("The root folder itself cannot be deleted.");
+        }
 
-        logger.LogInformation("Deleting item for server {ServerId} root {RootId}", serverId, rootId);
-        await fileRepository.DeleteAsync(root.Operation, relativePath, cancellationToken);
+        if (permanent)
+        {
+            logger.LogInformation("Permanently deleting item for server {ServerId} root {RootId}", serverId, rootId);
+            await fileRepository.DeleteAsync(root.Operation, relativePath, cancellationToken);
+            return null;
+        }
+
+        logger.LogInformation("Moving item to trash for server {ServerId} root {RootId}", serverId, rootId);
+        return await fileRepository.TrashAsync(root.Operation, relativePath, _options.TrashRetentionDays, cancellationToken);
+    }
+
+    public async Task<IReadOnlyList<TrashEntryDto>> ListTrashAsync(string serverId, string rootId, CancellationToken cancellationToken)
+    {
+        var root = ResolveWritableRoot(serverId, rootId);
+        return await fileRepository.ListTrashAsync(root.Operation, _options.TrashRetentionDays, cancellationToken);
+    }
+
+    public async Task<TrashEntryDto> RestoreTrashAsync(string serverId, string rootId, string trashId, CancellationToken cancellationToken)
+    {
+        var root = ResolveWritableRoot(serverId, rootId);
+        ValidateTrashId(trashId);
+        logger.LogInformation("Restoring trash entry for server {ServerId} root {RootId}", serverId, rootId);
+        return await fileRepository.RestoreTrashAsync(root.Operation, trashId, cancellationToken);
+    }
+
+    public async Task PurgeTrashAsync(string serverId, string rootId, string? trashId, CancellationToken cancellationToken)
+    {
+        var root = ResolveWritableRoot(serverId, rootId);
+        if (trashId is not null)
+        {
+            ValidateTrashId(trashId);
+        }
+
+        logger.LogInformation("Purging trash for server {ServerId} root {RootId}", serverId, rootId);
+        await fileRepository.PurgeTrashAsync(root.Operation, trashId, cancellationToken);
+    }
+
+    private static void ValidateTrashId(string trashId)
+    {
+        if (string.IsNullOrEmpty(trashId) || !trashId.All(c => char.IsAsciiDigit(c) || c == '-'))
+        {
+            throw new InvalidRelativePathException("Invalid trash id.");
+        }
     }
 
     public Task<string> ArchiveAsync(
@@ -268,7 +421,8 @@ public sealed class FileManagerService(
         logger.LogInformation("Starting compression for server {ServerId} root {RootId}", serverId, rootId);
         var taskId = backgroundOperationTracker.StartTracking(
             description,
-            ct => fileRepository.ArchiveAsync(root.Operation, sources, zipPath, ct));
+            new OperationTarget(serverId, rootId, ParentFolder(zipPath)),
+            (ct, progress) => fileRepository.ArchiveAsync(root.Operation, sources, zipPath, progress, ct));
 
         return Task.FromResult(taskId);
     }
@@ -287,12 +441,14 @@ public sealed class FileManagerService(
         logger.LogInformation("Starting extraction for server {ServerId} root {RootId}", serverId, rootId);
         var taskId = backgroundOperationTracker.StartTracking(
             $"Extracting '{zipPath}' to '{(destPath.Length == 0 ? "/" : destPath)}' in root '{rootId}'",
-            ct => fileRepository.ExtractAsync(
+            new OperationTarget(serverId, rootId, destPath.Trim('/')),
+            (ct, progress) => fileRepository.ExtractAsync(
                 root.Operation,
                 zipPath,
                 destPath,
                 _options.MaximumArchiveSizeBytes,
                 _options.MaximumArchiveEntries,
+                progress,
                 ct));
 
         return Task.FromResult(taskId);
@@ -301,6 +457,24 @@ public sealed class FileManagerService(
     public TrackedOperationDto? GetOperationStatus(string taskId)
     {
         return backgroundOperationTracker.GetStatus(taskId);
+    }
+
+    public IReadOnlyList<TrackedOperationDto> GetRecentOperations()
+    {
+        return backgroundOperationTracker.GetRecent();
+    }
+
+    public bool CancelOperation(string taskId)
+    {
+        logger.LogInformation("Cancelling background operation {TaskId}", taskId);
+        return backgroundOperationTracker.Cancel(taskId);
+    }
+
+    private static string ParentFolder(string relativePath)
+    {
+        var normalized = relativePath.Replace('\\', '/').Trim('/');
+        var lastSlash = normalized.LastIndexOf('/');
+        return lastSlash == -1 ? string.Empty : normalized[..lastSlash];
     }
 
     private (ServerInstanceRoots Instance, FileRootConfig Root) ResolveRoot(string serverId, string rootId)
@@ -330,7 +504,7 @@ public sealed class FileManagerService(
     }
 
     private static IReadOnlyList<FileRootDto> RootsOf(ServerInstanceRoots instance) =>
-        instance.Roots.Select(r => new FileRootDto(r.Key, r.Value.DisplayName, r.Value.IsWritable)).ToList();
+        instance.Roots.Select(r => new FileRootDto(r.Key, r.Value.DisplayName, r.Value.IsWritable, r.Value.ProtectedPaths)).ToList();
 
     private static void ValidateRelativePath(string relativePath)
     {
@@ -343,6 +517,12 @@ public sealed class FileManagerService(
 
         var normalized = relativePath.Replace('\\', '/');
         var segments = normalized.Split('/');
+
+        // The trash is only reachable through the trash endpoints.
+        if (segments.FirstOrDefault(s => s.Length > 0) is ".trash" or ".panel-tmp")
+        {
+            throw new InvalidRelativePathException("The trash folder can only be managed from the trash view.");
+        }
 
         if (segments.Any(s => s == ".." || s == "."))
         {

@@ -42,6 +42,37 @@ public sealed class RemoteFileRepository(IRemoteOperationsService remoteOperatio
             listing?.Skipped ?? 0);
     }
 
+    public async Task<SearchResponseDto> SearchAsync(
+        string operation,
+        string relativePath,
+        string query,
+        bool recursive,
+        int maximumResults,
+        CancellationToken cancellationToken)
+    {
+        var json = await ExecuteForTextAsync(
+            operation,
+            ["find", relativePath, query, recursive ? "1" : "0", maximumResults.ToString(CultureInfo.InvariantCulture)],
+            cancellationToken);
+
+        var model = Parse<SearchHelperModel>(operation, json);
+        var results = model?.Results
+            .Select(entry =>
+            {
+                var dto = ToDto(operation, entry, json);
+                return new SearchResultDto(entry.Path, dto.Name, dto.IsFolder, dto.Size, dto.Modified);
+            })
+            .ToList() ?? [];
+        return new SearchResponseDto(results, model?.Truncated ?? false);
+    }
+
+    public async Task<FolderSizeDto> MeasureAsync(string operation, string relativePath, CancellationToken cancellationToken)
+    {
+        var json = await ExecuteForTextAsync(operation, ["size", relativePath], cancellationToken);
+        return Parse<FolderSizeDto>(operation, json)
+            ?? throw new RemoteOperationFailedException(operation, 0, $"Failed to parse size output. Raw output: {json}");
+    }
+
     public async Task<FileEntryDto?> StatAsync(
         string operation,
         string relativePath,
@@ -70,8 +101,20 @@ public sealed class RemoteFileRepository(IRemoteOperationsService remoteOperatio
         string operation,
         string relativePath,
         Stream source,
+        CancellationToken cancellationToken,
+        bool createParents = false) =>
+        ExecuteAsync(operation, ["write", relativePath, createParents ? "1" : "0"], source, null, cancellationToken);
+
+    public Task ArchiveForDownloadAsync(
+        string operation,
+        string archiveId,
+        IReadOnlyList<string> sourcePaths,
+        IProgress<OperationProgress>? progress,
         CancellationToken cancellationToken) =>
-        ExecuteAsync(operation, ["write", relativePath], source, null, cancellationToken);
+        ExecuteWithProgressAsync(operation, ["zip-tmp", archiveId, .. sourcePaths], progress, cancellationToken);
+
+    public Task DeleteDownloadArchiveAsync(string operation, string archiveId, CancellationToken cancellationToken) =>
+        ExecuteAsync(operation, ["tmp-delete", archiveId], null, null, cancellationToken);
 
     public Task CreateDirectoryAsync(
         string operation,
@@ -99,12 +142,46 @@ public sealed class RemoteFileRepository(IRemoteOperationsService remoteOperatio
         CancellationToken cancellationToken) =>
         ExecuteAsync(operation, ["delete", relativePath], null, null, cancellationToken);
 
+    public async Task<TrashEntryDto> TrashAsync(string operation, string relativePath, int retentionDays, CancellationToken cancellationToken)
+    {
+        var json = await ExecuteForTextAsync(
+            operation, ["trash", relativePath, retentionDays.ToString(CultureInfo.InvariantCulture)], cancellationToken);
+        return ToTrashDto(operation, Parse<TrashHelperModel>(operation, json), json);
+    }
+
+    public async Task<IReadOnlyList<TrashEntryDto>> ListTrashAsync(string operation, int retentionDays, CancellationToken cancellationToken)
+    {
+        var json = await ExecuteForTextAsync(
+            operation, ["trash-list", retentionDays.ToString(CultureInfo.InvariantCulture)], cancellationToken);
+        return Parse<List<TrashHelperModel>>(operation, json)?.Select(m => ToTrashDto(operation, m, json)).ToList() ?? [];
+    }
+
+    public async Task<TrashEntryDto> RestoreTrashAsync(string operation, string trashId, CancellationToken cancellationToken)
+    {
+        var json = await ExecuteForTextAsync(operation, ["trash-restore", trashId], cancellationToken);
+        return ToTrashDto(operation, Parse<TrashHelperModel>(operation, json), json);
+    }
+
+    public Task PurgeTrashAsync(string operation, string? trashId, CancellationToken cancellationToken) =>
+        ExecuteAsync(operation, ["trash-purge", trashId ?? "*"], null, null, cancellationToken);
+
+    private static TrashEntryDto ToTrashDto(string operation, TrashHelperModel? model, string json)
+    {
+        if (model is null || !DateTimeOffset.TryParse(model.DeletedAt, CultureInfo.InvariantCulture, DateTimeStyles.None, out var deletedAt))
+        {
+            throw new RemoteOperationFailedException(operation, 0, $"Failed to parse trash metadata. Raw output: {json}");
+        }
+
+        return new TrashEntryDto(model.Id, model.OriginalPath, model.Name, model.IsFolder, model.Size, deletedAt);
+    }
+
     public Task ArchiveAsync(
         string operation,
         IReadOnlyList<string> sourcePaths,
         string zipPath,
+        IProgress<OperationProgress>? progress,
         CancellationToken cancellationToken) =>
-        ExecuteAsync(operation, ["zip", zipPath, .. sourcePaths], null, null, cancellationToken);
+        ExecuteWithProgressAsync(operation, ["zip", zipPath, .. sourcePaths], progress, cancellationToken);
 
     public Task ExtractAsync(
         string operation,
@@ -112,8 +189,9 @@ public sealed class RemoteFileRepository(IRemoteOperationsService remoteOperatio
         string destPath,
         long maximumExtractedBytes,
         int maximumEntries,
+        IProgress<OperationProgress>? progress,
         CancellationToken cancellationToken) =>
-        ExecuteAsync(
+        ExecuteWithProgressAsync(
             operation,
             [
                 "unzip",
@@ -122,9 +200,19 @@ public sealed class RemoteFileRepository(IRemoteOperationsService remoteOperatio
                 maximumExtractedBytes.ToString(CultureInfo.InvariantCulture),
                 maximumEntries.ToString(CultureInfo.InvariantCulture)
             ],
-            null,
-            null,
+            progress,
             cancellationToken);
+
+    private async Task ExecuteWithProgressAsync(
+        string operation,
+        IReadOnlyList<string> arguments,
+        IProgress<OperationProgress>? progress,
+        CancellationToken cancellationToken)
+    {
+        // The helper prints one JSON progress line on stdout at a time.
+        await using var stdout = new ProgressLineStream(progress);
+        await ExecuteAsync(operation, arguments, null, stdout, cancellationToken);
+    }
 
     private async Task<string> ExecuteForTextAsync(
         string operation,
@@ -199,11 +287,99 @@ public sealed class RemoteFileRepository(IRemoteOperationsService remoteOperatio
         public int Skipped { get; set; }
     }
 
-    private sealed class FileEntryHelperModel
+    private sealed class TrashHelperModel
     {
+        public string Id { get; set; } = string.Empty;
+        public string OriginalPath { get; set; } = string.Empty;
+        public string Name { get; set; } = string.Empty;
+        public bool IsFolder { get; set; }
+        public long Size { get; set; }
+        public string DeletedAt { get; set; } = string.Empty;
+    }
+
+    private sealed class SearchHelperModel
+    {
+        public List<FileEntryHelperModel> Results { get; set; } = [];
+        public bool Truncated { get; set; }
+    }
+
+    private class FileEntryHelperModel
+    {
+        public string Path { get; set; } = string.Empty;
         public string Name { get; set; } = string.Empty;
         public bool IsFolder { get; set; }
         public long Size { get; set; }
         public string Modified { get; set; } = string.Empty;
+    }
+
+    /// <summary>Write-only sink that parses newline-delimited progress JSON from the helper.</summary>
+    private sealed class ProgressLineStream(IProgress<OperationProgress>? progress) : Stream
+    {
+        private readonly List<byte> _line = [];
+
+        public override bool CanRead => false;
+        public override bool CanSeek => false;
+        public override bool CanWrite => true;
+        public override long Length => throw new NotSupportedException();
+        public override long Position { get => throw new NotSupportedException(); set => throw new NotSupportedException(); }
+        public override void Flush() { }
+        public override int Read(byte[] buffer, int offset, int count) => throw new NotSupportedException();
+        public override long Seek(long offset, SeekOrigin origin) => throw new NotSupportedException();
+        public override void SetLength(long value) => throw new NotSupportedException();
+
+        public override void Write(byte[] buffer, int offset, int count) => Write(buffer.AsSpan(offset, count));
+
+        public override void Write(ReadOnlySpan<byte> buffer)
+        {
+            foreach (var b in buffer)
+            {
+                if (b != (byte)'\n')
+                {
+                    // Guard against a helper that never sends a newline.
+                    if (_line.Count < 4096) _line.Add(b);
+                    continue;
+                }
+
+                Report();
+                _line.Clear();
+            }
+        }
+
+        public override Task WriteAsync(byte[] buffer, int offset, int count, CancellationToken cancellationToken)
+        {
+            Write(buffer.AsSpan(offset, count));
+            return Task.CompletedTask;
+        }
+
+        public override ValueTask WriteAsync(ReadOnlyMemory<byte> buffer, CancellationToken cancellationToken = default)
+        {
+            Write(buffer.Span);
+            return ValueTask.CompletedTask;
+        }
+
+        private void Report()
+        {
+            if (progress is null || _line.Count == 0) return;
+            try
+            {
+                var model = JsonSerializer.Deserialize<ProgressHelperModel>(_line.ToArray(), JsonSerializerOptions);
+                if (model is not null)
+                {
+                    progress.Report(new OperationProgress(model.Items, model.TotalItems, model.Bytes, model.TotalBytes));
+                }
+            }
+            catch (JsonException)
+            {
+                // Progress is best-effort; an unparsable line is ignored.
+            }
+        }
+    }
+
+    private sealed class ProgressHelperModel
+    {
+        public long Items { get; set; }
+        public long TotalItems { get; set; }
+        public long Bytes { get; set; }
+        public long TotalBytes { get; set; }
     }
 }

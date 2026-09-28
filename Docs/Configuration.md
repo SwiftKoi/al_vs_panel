@@ -83,6 +83,9 @@ Server profiles are configured under `Servers:Instances`. Each profile exposes s
 - `MaximumFileSizeBytes` — largest upload; `MaximumTextFileSizeBytes` — largest file the text editor opens or saves.
 - `MaximumArchiveSizeBytes` / `MaximumArchiveEntries` — total uncompressed size and entry count an archive may expand to when extracted (zip-bomb guard). Extraction is also refused when the disk lacks the space or when any file would be overwritten.
 - `MaximumListingEntries` — entries returned per folder listing; larger folders are truncated and the UI says so.
+- `TrashRetentionDays` — deleting moves items to `<root>/.trash/<id>/` (hidden from listings and search; only reachable through the trash endpoints) and they are purged after this many days. `DELETE .../files/{root}?permanent=true` skips the trash.
+- `Roots:<rootId>:ProtectedPaths` — root-relative paths the live game server uses (production: `Saves`, `Mods`, `ModConfig`, `ModData`, `Playerdata`, `serverconfig.json`, `servermagicnumbers.json`). While the server is online the UI requires an explicit acknowledgement, showing the current player count, before changing them.
+- `MaximumSearchResults` — results returned by name search (`GET .../files/{root}/search?q=&path=&recursive=`); the helper also stops after 15 s and marks the result truncated.
 - `MaximumConcurrentOperations` — running zip/unzip jobs; further requests get 429. `OperationTimeoutMinutes` stops a job that runs longer. Finished job status is kept in memory for one hour.
 
 `Instances:<serverId>:Roots:<rootId>` maps each root to a `file-manager.py` operation. The helper reports outcomes through exit codes (see its header) that the panel maps to 400/404/409/413 responses; only unexpected failures become 502.
