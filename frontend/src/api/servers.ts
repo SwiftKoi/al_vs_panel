@@ -32,6 +32,8 @@ export interface ServerMetricsResponse {
   diskTotalBytes: number;
   diskAvailableBytes: number;
   diskPercent: number;
+  /** When the game server container started (UTC); null when unknown. */
+  startedAtUtc?: string | null;
 }
 
 export interface ServerClientConnection {

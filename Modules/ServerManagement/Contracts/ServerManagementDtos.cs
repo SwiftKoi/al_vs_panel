@@ -48,7 +48,8 @@ public sealed record ServerMetricsResponse(
     long DiskUsedBytes,
     long DiskTotalBytes,
     long DiskAvailableBytes,
-    decimal DiskPercent);
+    decimal DiskPercent,
+    DateTimeOffset? StartedAtUtc = null);
 
 public sealed record ServerConnectionsResponse(
     string ServerId,

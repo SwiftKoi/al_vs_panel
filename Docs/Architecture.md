@@ -54,7 +54,7 @@ Each feature module is also an independent project under its module directory. M
 
 Owns the single-admin authentication flow, cookie session discovery and refresh, CSRF token issuance, cookie session handling, Identity persistence, password policy, account bootstrap, authentication DTOs, domain exceptions, and authentication tests. The browser uses the cookie session; it does not store access or refresh tokens.
 
-The module also owns the login-log audit feature. Login endpoints record every attempt (username, IP address, outcome, UTC timestamp) into the `LoginEvents` table hosted by the Users module's `AppDbContext` — the same persistence split used for trusted 2FA IPs. The flow is `Login endpoint -> ILoginLogService -> ILoginEventRepository -> AppDbContext (LoginEvents)`, and the dashboard reads recent attempts through `GET /auth/login-logs`.
+The module also owns the login-log audit feature. Login endpoints record every attempt (username, IP address, outcome, UTC timestamp) into the `LoginEvents` table hosted by the Users module's `AppDbContext` — the same persistence split used for trusted 2FA IPs. The flow is `Login endpoint -> ILoginLogService -> ILoginEventRepository -> AppDbContext (LoginEvents)`, and Settings → Security (plus the Overview "Needs attention" check) reads recent attempts through `GET /auth/login-logs`.
 
 ### RemoteOperations
 

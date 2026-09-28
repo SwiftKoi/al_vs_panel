@@ -3,6 +3,7 @@ import { useTranslation } from "react-i18next";
 import { QRCodeSVG } from "qrcode.react";
 import { api, type UserResponse, type TwoFactorSetupResponse, ApiError } from "@/api/client";
 import Button from "@/components/ui/Button";
+import LoginHistory from "@/components/settings/LoginHistory";
 import { Shield, Users, UserPlus, Trash2, Key, CheckCircle, AlertTriangle } from "lucide-react";
 
 type SettingsTab = "security" | "users";
@@ -201,6 +202,7 @@ export default function SettingsPage() {
       </div>
 
       {activeTab === "security" ? (
+        <>
         <div className="rounded-xl glass-panel p-6 shadow-xl space-y-6">
           <div className="flex items-center gap-3">
             <div className="p-2 rounded-lg bg-[#b8282e]/10 text-[#e04444] shadow-[0_0_6px_rgba(224,68,68,0.2)] shrink-0">
@@ -317,6 +319,8 @@ export default function SettingsPage() {
             </div>
           )}
         </div>
+        <LoginHistory />
+        </>
       ) : (
         <div className="rounded-xl glass-panel p-6 shadow-xl space-y-4">
           <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">

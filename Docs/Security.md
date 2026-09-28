@@ -12,7 +12,7 @@ State-changing cookie-authenticated requests require an ASP.NET antiforgery toke
 
 The Authentication module records every login attempt — successful and failed — into the `LoginEvents` table in the authentication database (`alegacy.db`). Each entry stores only the attempted username, the client IP address, the outcome, and a UTC timestamp. Passwords, 2FA codes, and session tokens are never stored or logged. Entries older than `Authentication:LoginLog:MaxRetainedDays` (default 90) are pruned on write, bounding audit-table growth.
 
-The read endpoint `GET /auth/login-logs` requires authentication and returns a paginated, newest-first list. The login page and dashboard use it to show recent activity; no role is required, matching the panel's current authorization model.
+The read endpoint `GET /auth/login-logs` requires authentication and returns a paginated, newest-first list. The Settings → Security tab lists the history, and the Overview page counts recent failed attempts; no role is required, matching the panel's current authorization model.
 
 ## Secrets
 

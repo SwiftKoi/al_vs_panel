@@ -34,6 +34,9 @@ memory_percent=$(printf '%s\n' "$memory_percent_raw" | sed 's/%$//')
 block_read=$(printf '%s\n' "$block_io_pair" | awk -F ' / ' '{ print $1 }')
 block_write=$(printf '%s\n' "$block_io_pair" | awk -F ' / ' '{ print $2 }')
 
+# RFC 3339 UTC time the container started; empty when it cannot be read.
+started_at=$(docker inspect -f '{{.State.StartedAt}}' "$container_id" 2>/dev/null || true)
+
 disk_stats=$(df -P -B1 "$data_path" | awk 'NR == 2 { print $2 "|" $3 "|" $4 "|" $5 }')
 disk_total_bytes=${disk_stats%%|*}
 remaining=${disk_stats#*|}
@@ -43,7 +46,7 @@ disk_used_bytes=$(du -s -B1 "$data_path" | awk 'NR == 1 { print $1 }')
 disk_total_bytes=$((disk_used_bytes + disk_available_bytes))
 disk_percent=$((disk_used_bytes * 100 / disk_total_bytes))
 
-printf '{"cpuPercent":%s,"memoryUsage":"%s","memoryLimit":"%s","memoryPercent":%s,"blockRead":"%s","blockWrite":"%s","diskUsedBytes":%s,"diskTotalBytes":%s,"diskAvailableBytes":%s,"diskPercent":%s}\n' \
+printf '{"cpuPercent":%s,"memoryUsage":"%s","memoryLimit":"%s","memoryPercent":%s,"blockRead":"%s","blockWrite":"%s","diskUsedBytes":%s,"diskTotalBytes":%s,"diskAvailableBytes":%s,"diskPercent":%s,"startedAt":"%s"}\n' \
     "$cpu_percent" \
     "$memory_usage" \
     "$memory_limit" \
@@ -53,4 +56,5 @@ printf '{"cpuPercent":%s,"memoryUsage":"%s","memoryLimit":"%s","memoryPercent":%
     "$disk_used_bytes" \
     "$disk_total_bytes" \
     "$disk_available_bytes" \
-    "$disk_percent"
+    "$disk_percent" \
+    "$started_at"

@@ -33,15 +33,58 @@ export const en = {
   },
   dashboard: {
     title: "Overview",
-    description: "System connection status and activity overview.",
-    backendApi: "Backend API",
-    checking: "Checking…",
-    available: "Available",
-    unavailable: "Unavailable",
-    sshServer: "SSH Server",
-    sshConnected: "Connected",
-    sshHost: "Host: 127.0.0.1:22",
-    lastLogins: "Recent Logins",
+    description: "Game server state at a glance.",
+    status: {
+      title: "Server",
+      online: "Online",
+      offline: "Offline",
+      unknown: "Unknown",
+      upFor: "Up for {{duration}}",
+      since: "since {{time}}",
+      uptimeUnknown: "Uptime not available",
+      offlineHint: "The game server is not running"
+    },
+    players: {
+      title: "Players online",
+      peak: "Peak in 24 h: {{count}}",
+      chart: "Players online over the last 24 hours",
+      point: "{{time}}: {{count}}"
+    },
+    performance: {
+      title: "Performance",
+      cpu: "CPU",
+      memory: "Memory",
+      lagNone: "No lag in the last hour",
+      lag: "Lag spikes over 1 s in the last hour: {{count}}"
+    },
+    disk: {
+      title: "Disk",
+      used: "{{used}} of {{total}}",
+      free: "{{free}} free"
+    },
+    online: {
+      title: "Who's online",
+      empty: "Nobody is online right now.",
+      offline: "The server is offline.",
+      unknownPlayer: "Unidentified connection",
+      ping: "ping",
+      loss: "loss",
+      viewAll: "Details"
+    },
+    attention: {
+      title: "Needs attention",
+      allGood: "All good — nothing needs attention.",
+      offline: "The game server is offline.",
+      disk: "Disk is {{percent}}% full, {{free}} left. Saving the world can fail when it runs out.",
+      lag: "Lag spikes over 1 s in the last hour: {{count}} (worst {{seconds}} s).",
+      drops: "Unexpected disconnects today: {{count}}.",
+      failedLogins: "Failed panel sign-ins in the last 24 h: {{count}}.",
+      metricsFailed: "Could not read CPU, memory and disk usage.",
+      open: "Open"
+    }
+  },
+  loginHistory: {
+    lastLogins: "Panel sign-in history",
     user: "User",
     time: "Time",
     ipAddress: "IP Address",

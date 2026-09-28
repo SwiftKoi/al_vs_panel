@@ -104,7 +104,8 @@ public sealed class ServerManagementService(
                 metrics.DiskUsedBytes,
                 metrics.DiskTotalBytes,
                 metrics.DiskAvailableBytes,
-                metrics.DiskPercent);
+                metrics.DiskPercent,
+                ParseStartedAt(metrics.StartedAt));
         }
         catch (JsonException)
         {
@@ -290,5 +291,21 @@ public sealed class ServerManagementService(
         long DiskUsedBytes,
         long DiskTotalBytes,
         long DiskAvailableBytes,
-        decimal DiskPercent);
+        decimal DiskPercent,
+        string? StartedAt = null);
+
+    /// <summary>Docker reports nanosecond precision, which DateTimeOffset cannot parse; trim to 7 digits.</summary>
+    private static DateTimeOffset? ParseStartedAt(string? value)
+    {
+        if (string.IsNullOrWhiteSpace(value))
+        {
+            return null;
+        }
+
+        var text = System.Text.RegularExpressions.Regex.Replace(value.Trim(), @"(\.\d{7})\d+", "$1");
+        return DateTimeOffset.TryParse(text, System.Globalization.CultureInfo.InvariantCulture,
+                   System.Globalization.DateTimeStyles.AssumeUniversal, out var parsed) && parsed.Year > 1
+            ? parsed.ToUniversalTime()
+            : null;
+    }
 }

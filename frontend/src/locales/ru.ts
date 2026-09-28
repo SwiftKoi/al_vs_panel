@@ -33,15 +33,58 @@ export const ru = {
   },
   dashboard: {
     title: "Обзор",
-    description: "Состояние подключения к системе и обзор активности.",
-    backendApi: "Backend API",
-    checking: "Проверка…",
-    available: "Доступен",
-    unavailable: "Недоступен",
-    sshServer: "SSH Сервер",
-    sshConnected: "Подключён",
-    sshHost: "Host: 127.0.0.1:22",
-    lastLogins: "Последние входы",
+    description: "Состояние игрового сервера с одного взгляда.",
+    status: {
+      title: "Сервер",
+      online: "Онлайн",
+      offline: "Офлайн",
+      unknown: "Неизвестно",
+      upFor: "Работает {{duration}}",
+      since: "с {{time}}",
+      uptimeUnknown: "Время работы недоступно",
+      offlineHint: "Игровой сервер не запущен"
+    },
+    players: {
+      title: "Игроки онлайн",
+      peak: "Пик за 24 ч: {{count}}",
+      chart: "Игроки онлайн за последние 24 часа",
+      point: "{{time}}: {{count}}"
+    },
+    performance: {
+      title: "Производительность",
+      cpu: "CPU",
+      memory: "Память",
+      lagNone: "Лагов за последний час не было",
+      lag: "Лагов дольше 1 с за последний час: {{count}}"
+    },
+    disk: {
+      title: "Диск",
+      used: "{{used}} из {{total}}",
+      free: "свободно {{free}}"
+    },
+    online: {
+      title: "Кто онлайн",
+      empty: "Сейчас никого нет.",
+      offline: "Сервер выключен.",
+      unknownPlayer: "Неопознанное подключение",
+      ping: "пинг",
+      loss: "потери",
+      viewAll: "Подробнее"
+    },
+    attention: {
+      title: "Требует внимания",
+      allGood: "Всё в порядке — ничего не требует внимания.",
+      offline: "Игровой сервер выключен.",
+      disk: "Диск заполнен на {{percent}}%, осталось {{free}}. Когда место кончится, сохранение мира может сломаться.",
+      lag: "Лагов дольше 1 с за последний час: {{count}} (худший {{seconds}} с).",
+      drops: "Неожиданных отключений сегодня: {{count}}.",
+      failedLogins: "Неудачных входов в панель за 24 ч: {{count}}.",
+      metricsFailed: "Не удалось получить загрузку CPU, памяти и диска.",
+      open: "Открыть"
+    }
+  },
+  loginHistory: {
+    lastLogins: "История входов в панель",
     user: "Пользователь",
     time: "Время",
     ipAddress: "IP-адрес",

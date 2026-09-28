@@ -97,6 +97,27 @@ public sealed class ServerManagementServiceTests
 
         Assert.Equal(12.5m, metrics.CpuPercent);
         Assert.Equal(100, metrics.DiskTotalBytes);
+        Assert.Null(metrics.StartedAtUtc);
+    }
+
+    [Theory]
+    [InlineData("2026-09-27T12:34:56.123456789Z", "2026-09-27T12:34:56.1234567+00:00")]
+    [InlineData("2026-09-27T12:34:56Z", "2026-09-27T12:34:56+00:00")]
+    [InlineData("0001-01-01T00:00:00Z", null)]
+    [InlineData("", null)]
+    [InlineData("garbage", null)]
+    public async Task Metrics_parse_container_start_time(string startedAt, string? expected)
+    {
+        var remote = new FakeRemoteOperations();
+        remote.Results["metrics-op"] = Success($$"""
+            {"cpuPercent":1,"memoryPercent":1,"diskUsedBytes":1,"diskTotalBytes":2,
+             "diskAvailableBytes":1,"diskPercent":50,"startedAt":"{{startedAt}}"}
+            """);
+        var service = CreateService(remote: remote);
+
+        var metrics = await service.GetMetricsAsync("main", CancellationToken.None);
+
+        Assert.Equal(expected is null ? null : DateTimeOffset.Parse(expected), metrics.StartedAtUtc);
     }
 
     [Fact]
