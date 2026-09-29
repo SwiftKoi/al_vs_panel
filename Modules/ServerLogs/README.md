@@ -5,6 +5,22 @@ Search and analysis of the **game server's own logs**: `server-main.log`, `serve
 The frontend page is `/server-logs` (`frontend/src/pages/ServerLogsPage.tsx`).
 This is not the panel's own log. That one belongs to `Modules/Logging` and the `/logs` page.
 
+## Features
+
+| Feature | What it does |
+|---|---|
+| **Incremental indexing** | A background worker reads only the new bytes of each game log (and the `Archive/` folders) and stores them in a SQLite full-text index. Rotation is tracked by file identity, so nothing is read twice or lost. |
+| **Full-text search** | One search box with `key:value` filters (log, level, player, action, item, source, near a location, …), free text, a time range and paging. Newest first. |
+| **Autocomplete and saved searches** | Suggests filter keys and values from the actual data. Searches can be saved per user and server (up to 50) and reused. |
+| **Facets and histogram** | Counts by log, level, source, player and action for the current query, and a histogram to zoom into a period. |
+| **Context and live tail** | Show the lines around any entry across all logs. Follow new entries as they arrive. |
+| **Export** | Download the current result as TXT or CSV (up to `MaximumExportRows`). |
+| **Problems** | Warnings and errors grouped by signature with counts, a trend and a **NEW** badge for signatures first seen since the last start. A signature can be muted. The Overview's "Needs attention" list reuses this. |
+| **Player activity** | From the audit log: per-player actions per day, items taken and put, kills, commands, deaths, joins and leaves, and busiest spots. |
+| **Location lookup** | Who did what within a radius of x,(y),z, and which items were taken or put there. Useful for griefing and theft investigations. |
+| **Startup timeline** | One row per server start with game version, mod count, time to ready, warnings and errors during startup, whether the previous run stopped cleanly or crashed, and which mods changed since the last start. |
+| **Retention** | Each log kind has its own retention (`RetentionDays`). Older entries are skipped on ingest and pruned hourly. |
+
 ## Flow
 
 ```text
@@ -102,7 +118,8 @@ An unknown `key:value` (e.g. `game:firewood`) is treated as text.
 
 ## HTTP API
 
-All endpoints require authentication and live under `/api/servers/{serverId}/server-logs`.
+All endpoints live under `/api/servers/{serverId}/server-logs` and are open to **admins and moderators**
+(`PanelPolicies.Staff`). Write routes (mute, saved searches) also need the anti-forgery token.
 
 | Method | Path | Notes |
 |---|---|---|
@@ -149,7 +166,7 @@ Servers without an entry show "not configured".
 - Chat logs are players' conversations, so they are indexed only with `IncludeChat: true`.
 - User input reaches SQL only as parameters, and reaches FTS only as quoted terms. There are no server-side regexes built from user input.
 - Saved searches belong to the signed-in user (the `ClaimTypes.Name` user id); other users can neither list nor delete them.
-- Audit coordinates show where players build. The page is for the panel's (admin) users only.
+- Audit coordinates show where players build. The page is for panel staff only (admins and moderators).
 
 ## Tests
 

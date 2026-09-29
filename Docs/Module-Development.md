@@ -8,6 +8,7 @@ Each module should follow this shape:
 Modules/<ModuleName>/
 ├── AlegacyWebPanel.<ModuleName>.csproj
 ├── module.json
+├── README.md        # features, API, configuration, layout
 ├── Contracts/       # DTOs and cross-layer contracts
 ├── Endpoints/       # HTTP coordination and response mapping
 ├── Exceptions/      # Module domain exceptions
@@ -22,6 +23,8 @@ Modules/<ModuleName>/
 The module project must reference `Core/AlegacyWebPanel.Core.csproj` and must exclude its `Tests/` directory from production compilation. The host project references the module project and remains responsible for composition and endpoint activation. Keep module-specific NuGet packages in the module project that uses them.
 
 Folders may be omitted only when a module genuinely has no responsibility in that area.
+
+Every module must have a `README.md` that at least lists the module's features with a short description of each. Update it in the same change that adds, removes or alters a feature, route or setting.
 
 ## Module manifest
 

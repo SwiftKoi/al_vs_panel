@@ -4,6 +4,22 @@ Shows the mods installed on a game server next to the official Vintage Story Mod
 (`https://mods.vintagestory.at`), and updates them in one click with a backup to roll back to.
 The frontend page is `/mods` (`frontend/src/pages/ModsPage.tsx`).
 
+## Features
+
+Routes are under `/api/servers/{serverId}/mods` and are **admin-only**.
+
+| Feature | What it does |
+|---|---|
+| **Installed mod scan** | Lists the mods on the server (zips, folders, single-file `.cs`/`.dll`) with id, name and installed version, and whether the running server has loaded each one. |
+| **ModDB comparison** | Looks every mod up on the official Vintage Story ModDB and assigns a status: update available, up to date, ahead, no compatible release, not on ModDB, check failed or unidentified. Results are cached for `CacheMinutes`. **Check ModDB** forces a refresh. |
+| **Game-version compatibility** | Only releases compatible with the server's game version (`major.minor`) are offered for one-click update. Mods already on a pre-release stay on that track. |
+| **Version history and changelogs** | Per-mod detail with every release, its game-version tags and a sanitised changelog. Any release can be installed, including newer pre-releases. |
+| **Verified one-click update** | Downloads from trusted ModDB hosts only, checks the zip and its `modinfo.json` (id and version must match), stages it on the server and swaps it in all-or-nothing. It runs as a background job, one per server. |
+| **Update all** | Updates every mod that has a compatible newer release, skipping pinned ones. |
+| **Backup and rollback** | Replaced files go to `Data/ModBackups/`. **Rollback** restores the last update and removes what it installed. Only one update is kept. |
+| **Pinning** | Pin a mod to keep it out of **Update all**. Pins are saved in `mod-manager.json`. |
+| **Restart hint** | Shows "restart required" when a mod file is newer than the server's start, and offers a restart button through ServerManagement. Nothing restarts automatically. |
+
 ## Flow
 
 ```text

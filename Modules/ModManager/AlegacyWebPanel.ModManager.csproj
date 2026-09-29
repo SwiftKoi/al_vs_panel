@@ -30,7 +30,7 @@
     <ProjectReference Include="../ServerManagement/AlegacyWebPanel.ServerManagement.csproj" />
     <!-- Newtonsoft is what the game itself uses to read modinfo.json, so it accepts the same lenient syntax. -->
     <PackageReference Include="Newtonsoft.Json" Version="13.0.3" />
-    <PackageReference Include="HtmlSanitizer" Version="9.0.886" />
+    <PackageReference Include="HtmlSanitizer" Version="9.2.1039" />
   </ItemGroup>
 
 </Project>

@@ -5,6 +5,22 @@ Records player activity and connection quality over time so the panel can answer
 statistics. Live, point-in-time views (such as the player connections table) stay
 in ServerManagement; this module owns everything that needs history.
 
+## Features
+
+The frontend page is `/analytics` (`AnalyticsPage.tsx`). The Overview also embeds the health and disconnect reports.
+
+| Feature | What it does |
+|---|---|
+| **Background recorder** | A hosted worker samples the live connections and server metrics every `SampleIntervalSeconds` and imports game-log events every `EventImportIntervalMinutes`. Old samples and events are pruned by retention settings. Turn it all off with `Analytics:Enabled=false`. |
+| **Player statistics** | Unique, new and returning players and join counts over rolling 24 h / 7 d / 30 d windows, plus per-day rows with peak concurrent players and proxy share. |
+| **Activity heatmap** | Average and peak distinct players online for each weekday × hour, in the configured time zone. Shows the best time for restarts and maintenance. |
+| **Player list and profiles** | Every player seen in a range with playtime, sessions, average session length, drops, quick rejoins, proxy use, first and last seen. A profile adds end reasons, connection quality and up to 200 recent sessions. |
+| **Disconnect report** | Pairs each join with the player's next leave or removal and classifies it (left, lost connection, client crash, server shutdown, server error, kicked, unknown, still open). Highlights **drops** and **quick rejoins**, and correlates each drop with autosave pauses, other players dropping at the same moment, tick lag and the player's last connection sample. Includes proxy vs direct drop rates and pre-join failure reasons. |
+| **Server health history** | Per-minute CPU, memory, players online, network traffic, autosave pause length and tick lag (overloaded ticks), with summary figures and the worst pauses and ticks. |
+| **Connection quality** | Median and 95th-percentile RTT, jitter, per-interval packet loss and stall counts, for everyone, proxy vs direct players, and each player. A per-player time series overlays their sessions and drops. |
+| **Proxy classification** | Client addresses inside `ProxyAddresses` (single IPs or CIDR ranges) count as proxied. It is applied when a report is built, so changing the list also reclassifies history. |
+| **Live stall detector** | The live connections table (in ServerManagement) flags players who have been silent for 5 s or more, or whose send queue grew on consecutive polls past 64 KB. |
+
 ## Data sources
 
 All sources are read from outside the game server; nothing execs into, restarts,
@@ -47,7 +63,10 @@ so deployed data is not lost.
 
 ## API
 
-`GET /api/analytics/{serverId}/players?days=30` (1–90 days, authenticated):
+All routes require sign-in. `disconnects` and `health` are open to moderators (they feed the Overview), and
+every other route is admin-only.
+
+`GET /api/analytics/{serverId}/players?days=30` (1–90 days):
 rolling 24h/7d/30d windows (unique, proxy, new players, joins) and per-day rows
 (unique, proxy, new, joins, peak concurrent from connection samples).
 

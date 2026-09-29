@@ -1,5 +1,5 @@
 {
   "name": "Authentication",
-  "description": "Single-admin authentication, session management, and Identity persistence.",
+  "description": "Cookie sign-in and sessions, TOTP two-factor with trusted IPs, own-password change, and login history.",
   "version": "1.0.0"
 }

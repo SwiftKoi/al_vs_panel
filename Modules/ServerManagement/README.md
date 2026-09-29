@@ -1,4 +1,47 @@
-# ServerManagement configuration
+# ServerManagement module
+
+Runs and watches the game servers the panel manages: start, stop and restart, live status and
+resource metrics, the live console and log stream, the connected-players table and moderation actions.
+It contains no game logic of its own. Each feature is an allowlisted operation from `Remote:Commands`,
+run through [RemoteOperations](../RemoteOperations/README.md) against the target named in the server profile.
+The frontend pages are Overview (`/`), Server (`/server`) and Quick actions (`/actions`).
+
+## Features
+
+| Feature | What it does |
+|---|---|
+| **Server list** | `GET /api/servers` returns the configured servers (id, name, host, port, location) for the server switcher. Which server a page shows is chosen per request, never as global backend state. |
+| **Lifecycle control** | `POST /api/servers/{id}/start\|stop\|restart` runs the profile's operation and returns the resulting status. Only one lifecycle operation per server runs at a time. A second one gets `409`. Admin-only. |
+| **Live status** | `GET …/status` reports `online`, `offline` or `unknown` from the status operation. |
+| **Resource metrics** | `GET …/metrics` returns CPU %, memory use/limit/%, block I/O, disk used/total/available/% and the server's start time. Analytics also samples it for history. |
+| **Live console log stream** | `GET …/logs` is a Server-Sent-Events stream (`line`, `error`, `end` events) of the game's output. Admin-only. |
+| **Console commands** | `POST …/commands` with `{ command }` sends one game command to the console. It is validated (non-empty, at most `Servers:MaximumCommandLength` = 512 characters) and appended as **one** argument, so it cannot add extra shell arguments. Admin-only. |
+| **Connected players** | `GET …/connections` lists live client sockets with player name, join count, RTT, jitter, retransmits, queues and bytes. Player IP addresses are blanked for moderators. Analytics samples this for history. |
+| **Moderation actions** | `POST …/actions/{gamemode, teleport, warn, kick, ban, hardban, unban, landclaim, allowcharselonce}`. Each action has its own endpoint that builds the console command from validated parts. Available to moderators, who never get the raw console. |
+| **Role split** | Admins can do everything. Moderators get the list, status, metrics, connections and the actions above. The exact route list is in [Security](../../Docs/Security.md#authorization). |
+
+### Moderation actions
+
+`IServerActionsService` builds the game command from validated fields. Player names must match
+`letters, digits, _ . -` (1–32 characters, no spaces).
+
+| Action | Game command | Input rules |
+|---|---|---|
+| `gamemode` | `/gamemode <player> <0-2>` | 0 guest, 1 survival, 2 creative |
+| `teleport` | `/tp <player> <x> <y> <z>` | finite coordinates within ±100 000 000. Prefix chosen by the server: none (as in the coordinates box), `=` (absolute) or `~` (relative) |
+| `warn` | `/warn <player> <reason>` | reason required |
+| `kick` | `/kick <player> [reason]` | reason optional |
+| `ban` | `/ban <player> [reason]` | reason optional |
+| `hardban` | `/hardban <player>` | – |
+| `unban` | `/unban <player>` | – |
+| `landclaim` | `/player <player> landclaimallowance\|landclaimmaxareas <n>` | allowance: any non-negative integer. Extra areas: 0–9999 |
+| `allowcharselonce` | `/player <player> allowcharselonce` | lets the player pick a class again |
+
+Reasons are at most 200 characters with no control characters. Every action is written to the panel log.
+
+## Configuration
+
+Server profiles, allowlisted operations and execution targets are wired together in configuration:
 
 ServerManagement connects browser-facing server IDs to trusted RemoteOperations. Configuration has three linked levels:
 
@@ -158,14 +201,15 @@ Profiles connect public server IDs to operation names:
         "StatusOperation": "main-status",
         "ConsoleOperation": "main-console",
         "LogsOperation": "main-logs",
-        "MetricsOperation": "main-metrics"
+        "MetricsOperation": "main-metrics",
+        "ConnectionsOperation": "main-connections"
       }
     ]
   }
 }
 ```
 
-`Id` is the stable API identifier and must be unique. `Name`, `Host`, `Port`, and `Location` are display metadata only; they never choose an execution target. Every operation field references `Remote:Commands`.
+`ConnectionsOperation` is optional. Without it the connected-players table stays empty. `Id` is the stable API identifier and must be unique. `Name`, `Host`, `Port`, and `Location` are display metadata only; they never choose an execution target. Every operation field references `Remote:Commands`.
 
 The frontend calls explicit routes such as `/api/servers/main/status`; there is no mutable global backend “current server.” This keeps different browser tabs and concurrent users isolated. Local storage remembers only the preferred ID.
 
@@ -173,7 +217,7 @@ The frontend calls explicit routes such as `/api/servers/main/status`; there is 
 
 Use a local target only when the web-panel process can execute its wrapper with the required permissions. The development Compose configuration supports local execution from inside the web-panel container by mounting the development server checkout at the same absolute path used by `appsettings.Development.json`, mounting `Data/` writable, and providing Docker CLI/Compose access to the existing local server container through the host Docker socket. The server container remains separate.
 
-Configure `DOCKER_GID` in the root `.env` to the host Docker group ID. This Docker-socket integration is development-only; SSH targets remain the option for a server running on another host.
+Configure `DOCKER_GID` in the root `.env` to the host Docker group ID. The production compose file mounts the Docker socket the same way, which makes the panel root-equivalent on the host (see [Security](../../Docs/Security.md)). SSH targets remain the option for a server running on another host.
 
 ## Validation, secrets, and precedence
 

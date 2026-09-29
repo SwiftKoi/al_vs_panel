@@ -2,6 +2,22 @@
 
 Secret-authenticated HTTP API for external automation. It exposes configured game-server file transfers and lifecycle operations to machine clients without browser cookies or CSRF tokens.
 
+## Features
+
+| Feature | What it does |
+| --- | --- |
+| **API-key authentication** | A single shared secret in the `X-Api-Key` header replaces the browser cookie and CSRF token. It is read from a file on every request, so rotating it needs no restart. |
+| **Server discovery** | `GET /api/v1/servers` lists the configured server profiles, so a client does not need hard-coded ids. |
+| **Runtime status** | `GET …/status` returns the authoritative status of one server (whether it is running, and so on). |
+| **File listing** | `GET …/files/{root}` lists a directory under a configured file root. |
+| **File download** | `GET …/files/{root}/download` streams a file, for example a world backup. |
+| **File upload** | `POST …/files/{root}/upload` writes one multipart file into a writable root, for example to deploy a mod or restore a save. |
+| **Lifecycle control** | `POST …/start`, `…/stop` and `…/restart` control the game server. A second lifecycle request while one is running returns `409`. |
+| **Opt-in exposure** | The whole API is off unless `AutomationApi:Enabled` is `true`. When off, the routes are not mapped at all. |
+
+All file and lifecycle behaviour is delegated to [FileManager](../FileManager/) and
+[ServerManagement](../ServerManagement/), so the same roots, limits and path checks apply as in the browser UI.
+
 ## Authentication
 
 Every route requires the `X-Api-Key` header. The key is read from the file configured by `AutomationApi:KeyFile` (default `/run/secrets/api_key`) on every request, so replacing the mounted secret rotates the key without a restart. The presented key is compared against the configured secret with a length-independent, timing-safe comparison and is never logged.
