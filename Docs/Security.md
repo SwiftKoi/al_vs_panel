@@ -44,6 +44,15 @@ Security controls:
 - **Inline image previews**: `download?inline=true` is limited to raster types (png, jpg, jpeg, gif, webp, bmp, ico; anything else gets 415) and is served with its exact content type, `Content-Disposition: inline`, and `Content-Security-Policy: default-src 'none'; img-src 'self'; sandbox`. SVG is deliberately excluded because it can carry script; SVGs are only downloaded or opened as text.
 - **Live-server guard**: changes under a root's `ProtectedPaths` (world saves, mods, configs) require an explicit acknowledgement in the UI while the game server is online. This is a UI safeguard against accidents, not an authorization boundary.
 
+## Server logs
+
+- The indexer reads game logs only through the read-only `server-logs.py` helper. It allowlists `server-{main,audit,debug,chat}.log` in `Logs/` and `Logs/Archive/` (one folder deep), and refuses `..`, symlinks, and paths that resolve outside `Logs/`. The panel never sends a path the helper did not list.
+- Chat logs contain players' conversations and are indexed only when `IncludeChat` is enabled for a server.
+- Search text reaches SQLite only as parameters. Free words reach FTS5 only as quoted terms, so query syntax cannot be injected, and no user-supplied regular expression runs on the server.
+- CSV exports prefix cells starting with `=`, `+`, `-` or `@` so spreadsheet apps do not evaluate them. Exports are capped at `MaximumExportRows`.
+- Saved searches are stored per signed-in user; the owner check happens in SQL on list and delete.
+- Audit entries reveal player activity and coordinates, which is private information. All endpoints require authentication, and muting a signature requires antiforgery validation.
+
 ## Automation API
 
 The AutomationApi module exposes `/api/v1` routes for machine clients: server discovery and status, path-confined file listing, download, and upload, and server start/stop/restart. It authenticates every request with the `X-Api-Key` header.
@@ -62,6 +71,8 @@ Security controls:
 The development Compose service binds the application to localhost. The production Compose service publishes only the Caddy gateway on ports 80 and 443; the ASP.NET service is private to the application network. Both services use read-only root filesystems, drop Linux capabilities, enable `no-new-privileges`, and keep writable state in named volumes. Production services restart unless stopped.
 
 The gateway forwards the original host and HTTPS scheme to ASP.NET. ASP.NET trusts forwarded headers only because the production web service is not published and is reachable through the private application network. Keep that network private if the deployment is extended.
+
+The application network is `internal`, so the ASP.NET service has no direct internet access. Its only outbound path is the `egress-proxy` service (Squid, `egress-proxy/squid.conf`), reached through `HTTPS_PROXY`. The proxy allows only `CONNECT` on port 443 to `mods.vintagestory.at` and `moddbcdn.vintagestory.at`, and it doesn't cache. TLS stays end to end, so the ModManager's HTTPS and trusted-host checks still apply. To allow another outbound host, add it to the proxy's `allowed_hosts` ACL; don't attach the web service to a non-internal network.
 
 These settings do not replace TLS, host hardening, least privilege, patching, monitoring, or network controls.
 

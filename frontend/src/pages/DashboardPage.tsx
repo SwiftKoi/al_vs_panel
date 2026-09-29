@@ -5,6 +5,7 @@ import { useTranslation } from "react-i18next";
 import { serverApi, type ServerClientConnection } from "@/api/servers";
 import { disconnectsApi, serverHealthApi, type ServerHealthResponse } from "@/api/analytics";
 import { loginsApi } from "@/api/logins";
+import { serverLogsApi } from "@/api/serverLogs";
 import Panel from "@/components/ui/Panel";
 import PageHeader from "@/components/layout/PageHeader";
 import ServerStatusBadge from "@/components/server/ServerStatusBadge";
@@ -71,12 +72,14 @@ export default function DashboardPage() {
   const healthLoad = useMemo(() => (serverId ? () => serverHealthApi.get(serverId, 24) : null), [serverId]);
   const dropsLoad = useMemo(() => (serverId ? () => disconnectsApi.report(serverId, 1) : null), [serverId]);
   const loginsLoad = useMemo(() => () => loginsApi.recent(1, 100), []);
+  const problemsLoad = useMemo(() => (serverId ? () => serverLogsApi.problemSummary(serverId) : null), [serverId]);
 
   const metrics = usePolling(metricsLoad, METRICS_REFRESH_MS);
   const connections = usePolling(connectionsLoad, SERVER_CONNECTIONS_INTERVAL_MS);
   const health = usePolling(healthLoad, HISTORY_REFRESH_MS);
   const drops = usePolling(dropsLoad, HISTORY_REFRESH_MS);
   const logins = usePolling(loginsLoad, HISTORY_REFRESH_MS);
+  const problems = usePolling(problemsLoad, HISTORY_REFRESH_MS);
 
   // Re-render every minute so uptime and "last hour" windows stay current between polls.
   const [now, setNow] = useState(() => Date.now());
@@ -121,6 +124,15 @@ export default function DashboardPage() {
     });
   }
   if (dropCount > 0) attention.push({ key: "drops", text: t("dashboard.attention.drops", { count: dropCount }), to: "/analytics?tab=disconnects", level: "warn" });
+  const newProblems = problems.data?.configured ? problems.data : undefined;
+  if (newProblems && newProblems.newErrors + newProblems.newWarnings > 0) {
+    attention.push({
+      key: "logProblems",
+      text: t("dashboard.attention.logProblems", { errors: newProblems.newErrors, warnings: newProblems.newWarnings }),
+      to: "/server-logs?tab=problems",
+      level: newProblems.newErrors > 0 ? "bad" : "warn"
+    });
+  }
   if (failedLogins > 0) attention.push({ key: "logins", text: t("dashboard.attention.failedLogins", { count: failedLogins }), to: "/settings", level: "warn" });
 
   return (

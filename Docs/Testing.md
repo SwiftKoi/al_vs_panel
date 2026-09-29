@@ -48,6 +48,7 @@ dotnet test Modules/AutomationApi/Tests/Unit/AlegacyWebPanel.AutomationApi.UnitT
 dotnet test Modules/AutomationApi/Tests/Feature/AlegacyWebPanel.AutomationApi.FeatureTests.csproj
 dotnet test Modules/Logging/Tests/Unit/AlegacyWebPanel.Logging.UnitTests.csproj
 dotnet test Modules/Logging/Tests/Feature/AlegacyWebPanel.Logging.FeatureTests.csproj
+dotnet test Modules/ServerLogs/Tests/Unit/AlegacyWebPanel.ServerLogs.UnitTests.csproj
 ```
 
 Run the complete test suite in the isolated SDK test image:

@@ -21,6 +21,8 @@ using AlegacyWebPanel.Modules.Logging.Endpoints;
 using AlegacyWebPanel.Modules.Logging.Infrastructure;
 using AlegacyWebPanel.Modules.ModManager.Endpoints;
 using AlegacyWebPanel.Modules.ModManager.Infrastructure;
+using AlegacyWebPanel.Modules.ServerLogs.Endpoints;
+using AlegacyWebPanel.Modules.ServerLogs.Infrastructure;
 using Microsoft.AspNetCore.DataProtection;
 using Microsoft.AspNetCore.HttpOverrides;
 
@@ -55,6 +57,7 @@ builder.Services.AddFileManagerModule(builder.Configuration);
 builder.Services.AddAutomationApiModule(builder.Configuration);
 builder.Services.AddAnalyticsModule(builder.Configuration);
 builder.Services.AddModManagerModule(builder.Configuration);
+builder.Services.AddServerLogsModule(builder.Configuration);
 
 var app = builder.Build();
 
@@ -79,5 +82,6 @@ app.MapAutomationApiModule();
 app.MapLoggingModule();
 app.MapAnalyticsModule();
 app.MapModManagerModule();
+app.MapServerLogsModule();
 
 app.Run();

@@ -10,6 +10,7 @@ import FileManagerPage from "@/pages/FileManagerPage";
 import EditorPage from "@/pages/EditorPage";
 import AnalyticsPage from "@/pages/AnalyticsPage";
 import LogsPage from "@/pages/LogsPage";
+import ServerLogsPage from "@/pages/ServerLogsPage";
 import ModsPage from "@/pages/ModsPage";
 import SettingsPage from "@/pages/SettingsPage";
 import { ServerProvider } from "@/context/ServerContext";
@@ -31,6 +32,7 @@ function AuthenticatedApp({ onLogout }: { onLogout: () => void }) {
           <Route path="/editor" element={<EditorPage />} />
           <Route path="/mods" element={<ModsPage />} />
           <Route path="/analytics" element={<AnalyticsPage />} />
+          <Route path="/server-logs" element={<ServerLogsPage />} />
           <Route path="/logs" element={<LogsPage />} />
           <Route path="/settings" element={<SettingsPage />} />
           <Route path="*" element={<Navigate to="/" replace />} />

@@ -99,7 +99,7 @@ export default function ServerConsole({
         <div className="absolute inset-0 pointer-events-none bg-gradient-to-b from-transparent via-black/5 to-transparent bg-[length:100%_4px] opacity-15" />
         
         {entries.length === 0 ? (
-          <div className="text-slate-600 italic text-center py-8 relative z-10">{t("server.consoleEmpty")}</div>
+          <div className="text-slate-500 italic text-center py-8 relative z-10">{t("server.consoleEmpty")}</div>
         ) : entries.map((entry) => (
           <div key={entry.id} className={`leading-relaxed whitespace-pre-wrap break-words relative z-10 ${entry.kind === "command" ? "text-[#ffd8a0] font-semibold" : entry.kind === "error" ? "text-[#e04444]" : "text-slate-300"}`}>
             {entry.text}

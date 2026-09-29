@@ -112,6 +112,10 @@ Owns recorded player activity and connection-quality history. A background worke
 
 Owns installed-mod discovery, the ModDB client (cached release history, compatibility against the server's game version, sanitised changelogs), pins, and verified updates with a one-batch backup and rollback. Files on the game server are only touched through the allowlisted `mod-manager.py` helper via `IRemoteOperationsService`; the server start time and restart come from the public `IServerManagementService` contract. Updates never restart the server: they take effect on the next restart, which the page offers. See [`Modules/ModManager/README.md`](../Modules/ModManager/README.md).
 
+### ServerLogs
+
+Owns search and analysis of the game server's own logs (main, audit, debug, and optionally chat). A background worker reads only new bytes through the allowlisted, read-only `server-logs.py` helper via `IRemoteOperationsService`. It recognises files the game rotated into `Archive/` by their first line, and indexes the entries into a dedicated SQLite database with FTS5 (`/var/lib/alegacy/data/serverlogs.db`). Queries follow `HTTP request -> ServerLogs endpoint -> IServerLogService -> ILogIndexRepository`. Audit lines are parsed into player, action, item and coordinates. Warnings and errors are grouped into signatures for the Problems view. See [`Modules/ServerLogs/README.md`](../Modules/ServerLogs/README.md).
+
 ## Persistence and state
 
 Authentication uses SQLite through the Authentication module’s persistence layer. The database is mounted at runtime through the `app_data` Docker volume.

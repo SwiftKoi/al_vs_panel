@@ -10,7 +10,8 @@
   --color-slate-800: #18181c;
   --color-slate-700: #222228;
   --color-slate-600: #2a2a32;
-  --color-slate-500: #42424d;
+  /* Secondary text: kept at WCAG AA contrast (≈5.4:1 on panels); #42424d was ~2:1 and unreadable. */
+  --color-slate-500: #8a8a96;
   --color-slate-400: rgba(255, 255, 255, 0.5);
   --color-slate-300: rgba(255, 255, 255, 0.7);
   --color-slate-200: rgba(255, 255, 255, 0.85);

@@ -1,0 +1,5 @@
+{
+  "name": "ServerLogs",
+  "description": "Search and analysis of the game server's own logs (main, audit, debug): incremental indexing into SQLite full-text search, facets, context, and grouped warnings/errors.",
+  "version": "1.0.0"
+}

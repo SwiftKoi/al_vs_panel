@@ -8,6 +8,9 @@ services:
       ASPNETCORE_ENVIRONMENT: Production
       WorkspacePath: ${HOST_WORKSPACE_PATH:?Set HOST_WORKSPACE_PATH in .env}
       AutomationApi__Enabled: "true"
+      # Outbound HTTPS (ModDB) goes through the allowlisting egress proxy; everything else stays internal.
+      HTTPS_PROXY: http://egress-proxy:3128
+      NO_PROXY: localhost,127.0.0.1,gateway,web
     secrets:
       - admin_password
       - ssh_private_key
@@ -67,6 +70,25 @@ services:
     restart: unless-stopped
     depends_on:
       - web
+
+  egress-proxy:
+    image: ubuntu/squid:6.10-24.10_beta
+    volumes:
+      - type: bind
+        source: ./egress-proxy/squid.conf
+        target: /etc/squid/squid.conf
+        read_only: true
+    networks:
+      - application
+      - public
+    tmpfs:
+      - /tmp:mode=1777
+      - /var/spool/squid:uid=13,gid=13
+      - /var/log/squid:uid=13,gid=13
+      - /run
+    security_opt:
+      - no-new-privileges:true
+    restart: unless-stopped
 
 networks:
   application:
