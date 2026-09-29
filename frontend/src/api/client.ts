@@ -96,7 +96,8 @@ export type LoginResponse = {
   requiresTwoFactor?: boolean;
   user?: AuthenticatedUser;
 };
-export type AuthenticatedUser = { id: string; username: string };
+export type PanelRole = "Admin" | "Moderator";
+export type AuthenticatedUser = { id: string; username: string; role: PanelRole | "" };
 export type AuthenticationSessionResponse = { authenticated: boolean; user: AuthenticatedUser };
 export type HealthResponse = { status: string };
 
@@ -104,6 +105,7 @@ export type UserResponse = {
   id: string;
   username: string;
   twoFactorEnabled: boolean;
+  role: PanelRole | "";
 };
 
 export type TwoFactorSetupResponse = {
@@ -137,18 +139,27 @@ export const api = {
   // 2FA Endpoints
   login2fa: (code: string) =>
     apiRequest<LoginResponse>("/auth/login/2fa", { method: "POST", body: JSON.stringify({ code }) }),
+  twoFactorStatus: () =>
+    apiRequest<{ enabled: boolean }>("/auth/2fa/status"),
   setup2fa: () =>
     apiRequest<TwoFactorSetupResponse>("/auth/2fa/setup", { method: "POST" }),
   enable2fa: (code: string) =>
     apiRequest<{ success: boolean }>("/auth/2fa/enable", { method: "POST", body: JSON.stringify({ code }) }),
   disable2fa: () =>
     apiRequest<{ success: boolean }>("/auth/2fa/disable", { method: "POST" }),
+  changePassword: async (currentPassword: string, newPassword: string) => {
+    await apiRequest<void>("/auth/password", { method: "POST", body: JSON.stringify({ currentPassword, newPassword }) });
+    // The session cookie is reissued with a new security stamp.
+    invalidateCsrfToken();
+  },
 
   // User CRUD Endpoints
   listUsers: () =>
     apiRequest<UserResponse[]>("/api/users"),
-  createUser: (username: string, password: string) =>
-    apiRequest<UserResponse>("/api/users", { method: "POST", body: JSON.stringify({ username, password }) }),
+  createUser: (username: string, password: string, role: PanelRole) =>
+    apiRequest<UserResponse>("/api/users", { method: "POST", body: JSON.stringify({ username, password, role }) }),
+  changeUserRole: (id: string, role: PanelRole) =>
+    apiRequest<UserResponse>(`/api/users/${id}/role`, { method: "PUT", body: JSON.stringify({ role }) }),
   deleteUser: (id: string) =>
     apiRequest<void>(`/api/users/${id}`, { method: "DELETE" })
 };

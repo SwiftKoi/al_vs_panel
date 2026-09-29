@@ -41,4 +41,11 @@ public interface IAuthenticationRepository
     ///
     /// <exception cref="InvalidOperationException">Thrown when the admin user cannot be created.</exception>
     Task CreateAdminAsync(string username, string password, CancellationToken cancellationToken);
+
+    /// <summary>
+    /// Changes a user's password after checking the current one.
+    /// </summary>
+    ///
+    /// <returns>The validation errors; empty when the password was changed.</returns>
+    Task<IReadOnlyList<string>> ChangePasswordAsync(string userId, string currentPassword, string newPassword, CancellationToken cancellationToken);
 }

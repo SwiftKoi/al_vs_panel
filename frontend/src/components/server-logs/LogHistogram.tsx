@@ -1,6 +1,7 @@
 import { useState } from "react";
 import { useTranslation } from "react-i18next";
 import type { LogHistogram as Histogram } from "@/api/serverLogs";
+import { cn } from "@/lib/cn";
 
 /** Entries per time bucket. Hover for counts; click a bar or drag across bars to zoom into that time. */
 export default function LogHistogram({ histogram, onZoom }: { histogram: Histogram; onZoom: (from: string, to: string) => void }) {
@@ -11,8 +12,11 @@ export default function LogHistogram({ histogram, onZoom }: { histogram: Histogr
   const max = Math.max(1, ...counts);
   const start = Date.parse(histogram.from);
   const bucket = histogram.bucketMilliseconds;
-  const long = bucket * counts.length > 2 * 86_400_000;
-  const format = new Intl.DateTimeFormat(i18n.language, long ? { dateStyle: "short", timeStyle: "short" } : { timeStyle: "short" });
+  const end = Date.parse(histogram.to);
+  // Show the date whenever the chart spans more than one calendar day (a 24 h range crosses midnight).
+  const multiDay = new Date(start).toDateString() !== new Date(end).toDateString();
+  const format = new Intl.DateTimeFormat(i18n.language, multiDay ? { day: "numeric", month: "short", hour: "2-digit", minute: "2-digit" } : { hour: "2-digit", minute: "2-digit" });
+  const ticks = [0, 0.25, 0.5, 0.75, 1];
   const number = new Intl.NumberFormat(i18n.language);
 
   const selection = drag ? [Math.min(drag.start, drag.end), Math.max(drag.start, drag.end)] : null;
@@ -56,9 +60,16 @@ export default function LogHistogram({ histogram, onZoom }: { histogram: Histogr
           </div>
         )}
       </div>
-      <div className="mt-1 flex justify-between text-[11px] text-slate-400">
-        <span>{format.format(new Date(start))}</span>
-        <span>{format.format(new Date(histogram.to))}</span>
+      <div className="relative mt-1 h-4 text-[11px] text-slate-400">
+        {ticks.map((tick, index) => (
+          <span
+            key={tick}
+            className={cn("absolute whitespace-nowrap", index % 2 === 1 && "hidden sm:inline")}
+            style={{ left: `${tick * 100}%`, transform: tick === 0 ? undefined : tick === 1 ? "translateX(-100%)" : "translateX(-50%)" }}
+          >
+            {format.format(new Date(start + tick * (end - start)))}
+          </span>
+        ))}
       </div>
     </div>
   );

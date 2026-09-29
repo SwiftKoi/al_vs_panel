@@ -305,7 +305,12 @@ export default function LogSearchBox({
           style={TEXT_STYLE}
           className="pointer-events-none absolute inset-0 overflow-hidden whitespace-pre pl-9 pr-9 text-white"
         >
-          {value ? <Highlighted text={value} /> : <span className="font-sans text-slate-400">{t("serverLogs.search.placeholder")}</span>}
+          {value ? <Highlighted text={value} /> : (
+            <span className="font-sans text-slate-400">
+              <span className="hidden sm:inline">{t("serverLogs.search.placeholder")}</span>
+              <span className="sm:hidden">{t("serverLogs.search.placeholderShort")}</span>
+            </span>
+          )}
           {/* Keeps the overlay scrollable to the same width as the input's text. */}
           <span className="inline-block w-9" />
         </div>

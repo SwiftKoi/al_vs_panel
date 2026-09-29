@@ -69,4 +69,8 @@ Business code throws module domain exceptions. It must not throw HTTP-specific e
 
 Each module should expose one registration method from `Infrastructure`, such as `AddAuthenticationModule` or `AddRemoteOperationsModule`, and one endpoint-mapping method from `Endpoints` (e.g. in `AuthenticationRoutes.cs`), such as `MapAuthenticationModule`. Endpoint handler implementations reside in `*Endpoints.cs` classes (e.g. `AuthenticationEndpoints.cs`), separating route binding from endpoint logic. `Program.cs` calls the registration and mapping methods and does not register module internals individually.
 
+## Authorization
+
+Browser routes are admin-only by default: a plain `RequireAuthorization()` uses the `Admin` policy. To let moderators use a route, map it in a separate group with `RequireAuthorization(PanelPolicies.Staff)` — group and endpoint policies are combined, so opening an endpoint inside an admin group has no effect. Update the moderator-route list in [Security](Security.md#authorization) and the module's route-policy test in the same change.
+
 Prefer explicit interfaces and DTOs between modules. Do not reach into another module’s persistence, services, or internal models. Put a contract in Core only when it is genuinely shared.

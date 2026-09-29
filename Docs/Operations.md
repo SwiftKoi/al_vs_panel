@@ -49,6 +49,10 @@ The gateway needs persistent `caddy_data` and `caddy_config` volumes for certifi
 
 The production file intentionally does not configure game-server targets or commands. Supply those through production configuration/environment values, and do not expose the Docker socket unless local execution is explicitly required. Do not expose the SSH management capability directly to the public internet.
 
+## Accounts and roles
+
+Admins create accounts in Settings → Users and pick a role: **Admin** (everything) or **Moderator** (read-only Overview, Server logs, and their own password and 2FA). The role can be changed later in the same table; the change reaches the user's open session within about a minute. The `AddPanelRoles` migration made every account that existed before roles an Admin. The last admin cannot be demoted or deleted.
+
 ## Automation API
 
 Machine clients call the secret-authenticated API under `/api/v1` for server discovery, status, file listing, download, upload, and start/stop/restart. The production gateway proxies `/api/*` to the application, so these routes are reachable on the public domain and protected only by the `X-Api-Key` secret. Send the key over HTTPS only and keep it out of shell history and logs.

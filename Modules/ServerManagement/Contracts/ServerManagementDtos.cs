@@ -37,6 +37,34 @@ public sealed record SendServerCommandRequest(string Command);
 
 public sealed record SendServerCommandResponse(string ServerId, bool Accepted);
 
+public sealed record SetGameModeRequest(string PlayerName, int Mode);
+
+/// <summary>Pretty: as in the coordinates box (x y z). Absolute: debug-screen values (=x). Relative: offset from the player (~x).</summary>
+[JsonConverter(typeof(JsonStringEnumConverter<TeleportCoordinates>))]
+public enum TeleportCoordinates
+{
+    Pretty,
+    Absolute,
+    Relative
+}
+
+public sealed record TeleportRequest(string PlayerName, TeleportCoordinates Coordinates, double X, double Y, double Z);
+
+public sealed record PlayerRequest(string PlayerName);
+
+[JsonConverter(typeof(JsonStringEnumConverter<LandClaimSetting>))]
+public enum LandClaimSetting
+{
+    /// <summary>Extra land claim allowance (<c>landclaimallowance</c>).</summary>
+    Allowance,
+    /// <summary>Extra land claim areas (<c>landclaimmaxareas</c>).</summary>
+    MaxAreas
+}
+
+public sealed record LandClaimRequest(string PlayerName, LandClaimSetting Setting, int Value);
+
+public sealed record PlayerReasonRequest(string PlayerName, string? Reason);
+
 public sealed record ServerMetricsResponse(
     string ServerId,
     decimal CpuPercent,

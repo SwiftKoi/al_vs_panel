@@ -8,11 +8,24 @@ Authentication cookies are HTTP-only and use strict SameSite behavior. Productio
 
 State-changing cookie-authenticated requests require an ASP.NET antiforgery token in the `X-CSRF-TOKEN` header. The frontend obtains a token from `GET /auth/csrf` and sends it with login, refresh, logout, and remote-operation requests. Authentication failures from API endpoints return `401` or `403` responses rather than redirects.
 
+## Authorization
+
+Every browser account has exactly one role, `Admin` or `Moderator`. Roles are Identity roles in `alegacy.db`; the role names and policies are shared primitives in `Core/Authorization`.
+
+- **Fail closed.** `PanelPolicies.Configure` makes the `Admin` policy the default, so a plain `RequireAuthorization()` is admin-only. A route is opened to moderators only by `RequireAuthorization(PanelPolicies.Staff)` (Admin or Moderator). `PanelPolicies.SignedIn` (any signed-in cookie) is used only for session, refresh and logout.
+- **Group policies are combined with endpoint policies** (all must pass). A moderator route therefore needs its own `Staff` group; adding `Staff` to an endpoint inside an admin group does not open it. The ServerManagement and Analytics feature tests assert the exact set of moderator routes.
+- **Moderator routes:** `GET /api/servers`, `GET /api/servers/{id}/status|metrics|connections`, `POST /api/servers/{id}/actions/gamemode|teleport|warn|kick|ban|hardban|unban|landclaim|allowcharselonce`, `GET /api/analytics/{id}/health|disconnects`, every `/api/servers/{id}/server-logs/*` route (including mute and saved searches), and the own-account routes `/auth/password`, `/auth/2fa/status|setup|enable|disable`. Everything else — lifecycle, console, files, mods, remote operations, other analytics, panel logs, users, login history — is admin-only.
+- **Actions:** moderators never get the raw console. Each action has its own endpoint handled by `IServerActionsService` (ServerManagement module), which builds the command from validated parts and sends it through `IServerManagementService.SendCommandAsync`: player names must match letters, digits and `_ . -` (1–32, no spaces, so they can't add arguments); game mode is 0–2; teleport coordinates are finite numbers with a server-chosen prefix (none, `=` or `~`); extra land-claim areas are 0–9999 and extra allowance any non-negative int; the warn reason is required; kick/ban reasons are optional, at most 200 characters, with no control characters. Examples: `/gamemode Flajakay 1`, `/tp Flajakay =100 120 =-50`, `/ban Flajakay griefing`.
+- **Player addresses** in `/connections` are blanked for non-admins; moderators see names and connection quality.
+- **Role changes** rotate the user's security stamp. The cookie is revalidated against the database every minute (`SecurityStampValidatorOptions.ValidationInterval`), so a role change or deletion reaches an open session within about a minute. The frontend also refreshes the cookie on load so its role claims are current.
+- Admins cannot change their own role, and the last admin cannot be demoted or deleted.
+- The frontend hides admin pages, Quick actions and dashboard drill-down links from moderators. That is convenience only; the backend is the boundary.
+
 ## Login log
 
 The Authentication module records every login attempt — successful and failed — into the `LoginEvents` table in the authentication database (`alegacy.db`). Each entry stores only the attempted username, the client IP address, the outcome, and a UTC timestamp. Passwords, 2FA codes, and session tokens are never stored or logged. Entries older than `Authentication:LoginLog:MaxRetainedDays` (default 90) are pruned on write, bounding audit-table growth.
 
-The read endpoint `GET /auth/login-logs` requires authentication and returns a paginated, newest-first list. The Settings → Security tab lists the history, and the Overview page counts recent failed attempts; no role is required, matching the panel's current authorization model.
+The read endpoint `GET /auth/login-logs` requires authentication and returns a paginated, newest-first list. The Settings → Security tab lists the history, and the Overview page counts recent failed attempts. The endpoint is admin-only.
 
 ## Secrets
 
@@ -51,7 +64,7 @@ Security controls:
 - Search text reaches SQLite only as parameters. Free words reach FTS5 only as quoted terms, so query syntax cannot be injected, and no user-supplied regular expression runs on the server.
 - CSV exports prefix cells starting with `=`, `+`, `-` or `@` so spreadsheet apps do not evaluate them. Exports are capped at `MaximumExportRows`.
 - Saved searches are stored per signed-in user; the owner check happens in SQL on list and delete.
-- Audit entries reveal player activity and coordinates, which is private information. All endpoints require authentication, and muting a signature requires antiforgery validation.
+- Audit entries reveal player activity and coordinates. All endpoints require the `Staff` policy (admins and moderators), and muting a signature requires antiforgery validation.
 
 ## Automation API
 

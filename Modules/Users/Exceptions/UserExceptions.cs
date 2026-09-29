@@ -13,3 +13,12 @@ public sealed class UserCreationFailedException(string details)
 
 public sealed class SelfDeletionException()
     : DomainException("You cannot delete your own user account.");
+
+public sealed class InvalidRoleException(string role)
+    : DomainException($"'{role}' is not a valid role.");
+
+public sealed class SelfRoleChangeException()
+    : DomainException("You cannot change your own role.");
+
+public sealed class LastAdminException()
+    : DomainException("At least one admin account must remain.");

@@ -132,7 +132,9 @@ body::before {
   mix-blend-mode: overlay;
 }
 
-button, input, select, textarea { font: inherit; }
+@layer base {
+  button, input, select, textarea { font: inherit; }
+}
 
 /* Custom scrollbars */
 * {
@@ -245,3 +247,8 @@ button, input, select, textarea { font: inherit; }
 .changelog a { color: #f87171; text-decoration: underline; }
 .changelog code { font-family: ui-monospace, monospace; color: #e2e8f0; }
 .changelog h1, .changelog h2, .changelog h3, .changelog h4 { font-weight: 700; color: #e2e8f0; margin-top: 0.5rem; }
+
+/* Fades the right edge of a horizontally scrollable row on small screens, hinting that it scrolls. */
+@media (max-width: 767px) {
+  .scroll-fade-x { mask-image: linear-gradient(to right, black calc(100% - 2rem), transparent); padding-right: 1.5rem; }
+}

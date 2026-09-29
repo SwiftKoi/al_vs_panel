@@ -38,6 +38,7 @@ Repositories expose data access. They do not contain business rules. Persistence
 The Core project contains cross-module capabilities only:
 
 - shared abstractions such as secret reading;
+- panel roles and authorization policies (`Core/Authorization`: `PanelRoles`, `PanelPolicies`);
 - redacted secret values;
 - domain and HTTP exception primitives;
 - shared exception handling;
@@ -52,7 +53,7 @@ Each feature module is also an independent project under its module directory. M
 
 ### Authentication
 
-Owns the single-admin authentication flow, cookie session discovery and refresh, CSRF token issuance, cookie session handling, Identity persistence, password policy, account bootstrap, authentication DTOs, domain exceptions, and authentication tests. The browser uses the cookie session; it does not store access or refresh tokens.
+Owns the authentication flow, cookie session discovery and refresh (the session reports the user's role), own-account password change and 2FA, CSRF token issuance, cookie session handling, Identity persistence, password policy, account bootstrap, authentication DTOs, domain exceptions, and authentication tests. The browser uses the cookie session; it does not store access or refresh tokens.
 
 The module also owns the login-log audit feature. Login endpoints record every attempt (username, IP address, outcome, UTC timestamp) into the `LoginEvents` table hosted by the Users module's `AppDbContext` — the same persistence split used for trusted 2FA IPs. The flow is `Login endpoint -> ILoginLogService -> ILoginEventRepository -> AppDbContext (LoginEvents)`, and Settings → Security (plus the Overview "Needs attention" check) reads recent attempts through `GET /auth/login-logs`.
 
@@ -115,6 +116,10 @@ Owns installed-mod discovery, the ModDB client (cached release history, compatib
 ### ServerLogs
 
 Owns search and analysis of the game server's own logs (main, audit, debug, and optionally chat). A background worker reads only new bytes through the allowlisted, read-only `server-logs.py` helper via `IRemoteOperationsService`. It recognises files the game rotated into `Archive/` by their first line, and indexes the entries into a dedicated SQLite database with FTS5 (`/var/lib/alegacy/data/serverlogs.db`). Queries follow `HTTP request -> ServerLogs endpoint -> IServerLogService -> ILogIndexRepository`. Audit lines are parsed into player, action, item and coordinates. Warnings and errors are grouped into signatures for the Problems view. See [`Modules/ServerLogs/README.md`](../Modules/ServerLogs/README.md).
+
+### Users
+
+Owns panel accounts and their roles (`Admin` or `Moderator`, exactly one per user), the Identity `AppDbContext`, the startup seeder (roles plus the configured initial admin), and user management endpoints under `/api/users` (list, create with a role, change role, delete). It refuses to change your own role and to demote or delete the last admin. See [Security](Security.md#authorization) for what each role may do.
 
 ## Persistence and state
 

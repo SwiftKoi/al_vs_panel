@@ -1,3 +1,4 @@
+using AlegacyWebPanel.Core.Authorization;
 using AlegacyWebPanel.Modules.Authentication.Configuration;
 using AlegacyWebPanel.Modules.Authentication.Persistence;
 using AlegacyWebPanel.Modules.Authentication.Services;
@@ -21,7 +22,11 @@ public static class AuthenticationModule
 
         services.AddAuthentication(IdentityConstants.ApplicationScheme)
             .AddIdentityCookies();
-        services.AddAuthorization();
+        services.AddAuthorization(PanelPolicies.Configure);
+
+        // Re-read roles and the security stamp from the database every minute, so a role
+        // change or account deletion reaches an existing cookie promptly.
+        services.Configure<SecurityStampValidatorOptions>(options => options.ValidationInterval = TimeSpan.FromMinutes(1));
 
         services.ConfigureApplicationCookie(options =>
         {

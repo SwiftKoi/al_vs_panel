@@ -115,7 +115,7 @@ public sealed class AuthenticationEndpointTests
     [Fact]
     public async Task LoginTwoFactor_verifies_code_and_completes_login()
     {
-        var session = new FakeAuthenticationSession { TwoFactorUser = new AuthenticatedUser("1", "admin") };
+        var session = new FakeAuthenticationSession { TwoFactorUser = new AuthenticatedUser("1", "admin", "Admin") };
         var twoFactorService = new FakeTwoFactorService();
         var loginLog = new FakeLoginLogService();
         var httpContext = new DefaultHttpContext();
@@ -141,7 +141,7 @@ public sealed class AuthenticationEndpointTests
     [Fact]
     public async Task LoginTwoFactor_translates_invalid_code_to_http_exception_and_records_failure()
     {
-        var session = new FakeAuthenticationSession { TwoFactorUser = new AuthenticatedUser("1", "admin") };
+        var session = new FakeAuthenticationSession { TwoFactorUser = new AuthenticatedUser("1", "admin", "Admin") };
         var twoFactorService = new FakeTwoFactorService();
         var loginLog = new FakeLoginLogService();
         var httpContext = new DefaultHttpContext();
@@ -198,9 +198,19 @@ public sealed class AuthenticationEndpointTests
     }
 
     [Fact]
+    public async Task TwoFactorStatus_reports_current_users_state()
+    {
+        var session = new FakeAuthenticationSession { CurrentUser = new AuthenticatedUser("1", "mod", "Moderator") };
+
+        var result = await AuthenticationEndpoints.TwoFactorStatusAsync(session, new FakeTwoFactorService { IsEnabled = true }, CancellationToken.None);
+
+        Assert.True(Assert.IsType<Ok<TwoFactorStatusResponse>>(result).Value!.Enabled);
+    }
+
+    [Fact]
     public async Task GetTwoFactorSetup_coordinates_service()
     {
-        var session = new FakeAuthenticationSession { CurrentUser = new AuthenticatedUser("1", "admin") };
+        var session = new FakeAuthenticationSession { CurrentUser = new AuthenticatedUser("1", "admin", "Admin") };
         var twoFactorService = new FakeTwoFactorService { SetupSecret = "SECRETKEY", SetupUri = "otpauth://123" };
 
         var result = await AuthenticationEndpoints.GetTwoFactorSetupAsync(
@@ -217,7 +227,7 @@ public sealed class AuthenticationEndpointTests
     [Fact]
     public async Task EnableTwoFactor_verifies_and_enables()
     {
-        var session = new FakeAuthenticationSession { CurrentUser = new AuthenticatedUser("1", "admin") };
+        var session = new FakeAuthenticationSession { CurrentUser = new AuthenticatedUser("1", "admin", "Admin") };
         var twoFactorService = new FakeTwoFactorService { IsEnabled = false };
         var httpContext = new DefaultHttpContext();
         httpContext.Connection.RemoteIpAddress = System.Net.IPAddress.Parse("127.0.0.1");
@@ -239,7 +249,7 @@ public sealed class AuthenticationEndpointTests
     [Fact]
     public async Task DisableTwoFactor_coordinates_service()
     {
-        var session = new FakeAuthenticationSession { CurrentUser = new AuthenticatedUser("1", "admin") };
+        var session = new FakeAuthenticationSession { CurrentUser = new AuthenticatedUser("1", "admin", "Admin") };
         var twoFactorService = new FakeTwoFactorService { IsEnabled = true };
 
         var result = await AuthenticationEndpoints.DisableTwoFactorAsync(
@@ -257,11 +267,39 @@ public sealed class AuthenticationEndpointTests
     public async Task Session_returns_authenticated_user()
     {
         var result = await AuthenticationEndpoints.SessionAsync(
-            new FakeAuthenticationSession { CurrentUser = new AuthenticatedUser("1", "admin") },
+            new FakeAuthenticationSession { CurrentUser = new AuthenticatedUser("1", "admin", "Admin") },
             CancellationToken.None);
 
         var response = Assert.IsType<Ok<AuthenticationSessionResponse>>(result);
         Assert.Equal("admin", response.Value!.User!.Username);
+        Assert.Equal("Admin", response.Value!.User!.Role);
+    }
+
+    [Fact]
+    public async Task ChangePassword_changes_the_current_users_password()
+    {
+        var service = new FakeAuthenticationService();
+
+        var result = await AuthenticationEndpoints.ChangePasswordAsync(
+            new ChangePasswordRequest("old", "new"),
+            new FakeAuthenticationSession { CurrentUser = new AuthenticatedUser("1", "mod", "Moderator") },
+            service,
+            CancellationToken.None);
+
+        Assert.IsType<NoContent>(result);
+        Assert.Equal(new ChangePasswordRequest("old", "new"), service.PasswordChange);
+    }
+
+    [Fact]
+    public async Task ChangePassword_translates_domain_failure_to_bad_request()
+    {
+        var exception = await Assert.ThrowsAsync<HttpException>(() => AuthenticationEndpoints.ChangePasswordAsync(
+            new ChangePasswordRequest("wrong", "new"),
+            new FakeAuthenticationSession { CurrentUser = new AuthenticatedUser("1", "mod", "Moderator") },
+            new FailingAuthenticationService(),
+            CancellationToken.None));
+
+        Assert.Equal(StatusCodes.Status400BadRequest, exception.StatusCode);
     }
 
     [Fact]
@@ -298,13 +336,30 @@ public sealed class AuthenticationEndpointTests
     private sealed class FakeAuthenticationService : IAuthenticationService
     {
         public Task<AuthenticatedUser> AuthenticateAsync(LoginCommand command, CancellationToken cancellationToken) =>
-            Task.FromResult(new AuthenticatedUser("1", command.Username));
+            Task.FromResult(new AuthenticatedUser("1", command.Username, "Admin"));
+
+        public ChangePasswordRequest? PasswordChange { get; private set; }
+        public bool FailPasswordChange { get; init; }
+
+        public Task ChangePasswordAsync(string userId, ChangePasswordRequest request, CancellationToken cancellationToken)
+        {
+            if (FailPasswordChange)
+            {
+                throw new PasswordChangeFailedException("Incorrect password.");
+            }
+
+            PasswordChange = request;
+            return Task.CompletedTask;
+        }
     }
 
     private sealed class FailingAuthenticationService : IAuthenticationService
     {
         public Task<AuthenticatedUser> AuthenticateAsync(LoginCommand command, CancellationToken cancellationToken) =>
             throw new AuthenticationFailedException();
+
+        public Task ChangePasswordAsync(string userId, ChangePasswordRequest request, CancellationToken cancellationToken) =>
+            throw new PasswordChangeFailedException("Incorrect password.");
     }
 
     private sealed class FakeAuthenticationSession : IAuthenticationSession

@@ -1,3 +1,4 @@
+using AlegacyWebPanel.Core.Authorization;
 using AlegacyWebPanel.Core.Endpoints;
 
 namespace AlegacyWebPanel.Modules.ServerLogs.Endpoints;
@@ -6,7 +7,7 @@ public static class ServerLogsRoutes
 {
     public static IEndpointRouteBuilder MapServerLogsModule(this IEndpointRouteBuilder endpoints)
     {
-        var group = endpoints.MapGroup("/api/servers/{serverId}/server-logs").RequireAuthorization();
+        var group = endpoints.MapGroup("/api/servers/{serverId}/server-logs").RequireAuthorization(PanelPolicies.Staff);
 
         group.MapGet("/status", ServerLogsEndpoints.StatusAsync);
         group.MapGet("/search", ServerLogsEndpoints.SearchAsync);

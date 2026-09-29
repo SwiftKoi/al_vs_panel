@@ -1,3 +1,4 @@
+using AlegacyWebPanel.Core.Authorization;
 using System.Security.Claims;
 using AlegacyWebPanel.Modules.Authentication.Contracts;
 using AlegacyWebPanel.Modules.Authentication.Services;
@@ -20,7 +21,13 @@ public sealed class IdentityAuthenticationSession(
         }
 
         var user = await signInManager.UserManager.GetUserAsync(principal);
-        return user is null ? null : new AuthenticatedUser(user.Id, user.UserName ?? string.Empty);
+        return user is null ? null : await ToAuthenticatedUserAsync(user);
+    }
+
+    private async Task<AuthenticatedUser> ToAuthenticatedUserAsync(IdentityUser user)
+    {
+        var role = (await signInManager.UserManager.GetRolesAsync(user)).FirstOrDefault(PanelRoles.IsKnown);
+        return new AuthenticatedUser(user.Id, user.UserName ?? string.Empty, role ?? string.Empty);
     }
 
     public async Task SignInAsync(AuthenticatedUser user, CancellationToken cancellationToken)
@@ -78,7 +85,7 @@ public sealed class IdentityAuthenticationSession(
         }
 
         var user = await signInManager.UserManager.FindByIdAsync(userId);
-        return user is null ? null : new AuthenticatedUser(user.Id, user.UserName ?? string.Empty);
+        return user is null ? null : await ToAuthenticatedUserAsync(user);
     }
 
     public async Task ClearTwoFactorCookieAsync(CancellationToken cancellationToken)

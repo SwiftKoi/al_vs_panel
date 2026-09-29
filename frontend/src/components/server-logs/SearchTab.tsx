@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useSearchParams } from "react-router-dom";
 import { useTranslation } from "react-i18next";
-import { Bookmark, BookmarkPlus, Download, HelpCircle, Loader2, Radio, X } from "lucide-react";
+import { Bookmark, BookmarkPlus, ChevronDown, Download, HelpCircle, Loader2, Radio, SlidersHorizontal, X } from "lucide-react";
 import Panel from "@/components/ui/Panel";
 import Button from "@/components/ui/Button";
 import { ApiError } from "@/api/client";
@@ -19,16 +19,6 @@ import { parseRange, resolveRange, writeRange, type RangePreset, type TimeRange 
 
 const LIVE_INTERVAL_MS = 10_000;
 
-const SUGGESTIONS: { key: string; query: string }[] = [
-  { key: "errors", query: "level:error" },
-  { key: "warnings", query: "level:warning" },
-  { key: "commands", query: "action:command" },
-  { key: "deaths", query: "action:death" },
-  { key: "joins", query: "action:join action:leave" },
-  { key: "overloaded", query: "\"Server overloaded\"" },
-  { key: "rejected", query: "action:position-rejected" },
-  { key: "broken", query: "action:break" }
-];
 
 type Results = { entries: LogEntry[]; nextCursor: string | null; terms: string[] };
 
@@ -53,6 +43,8 @@ export default function SearchTab({ serverId }: { serverId: string }) {
   const [error, setError] = useState<string>();
   const [live, setLive] = useState(false);
   const [showHelp, setShowHelp] = useState(false);
+  // Below lg the facets would push results far down, so they start collapsed there.
+  const [facetsOpen, setFacetsOpen] = useState(false);
   const [contextEntry, setContextEntry] = useState<LogEntry>();
   const [saved, setSaved] = useState<SavedSearch[]>([]);
   const [saveName, setSaveName] = useState<string | null>(null);
@@ -174,12 +166,11 @@ export default function SearchTab({ serverId }: { serverId: string }) {
   }, [query, setQuery]);
 
   const pattern = useMemo(() => highlightTerms(results?.terms ?? []), [results?.terms]);
-  const timeFormat = useMemo(() => {
-    const multiDay = !("preset" in range) || !["1h", "6h", "24h"].includes(range.preset);
-    return new Intl.DateTimeFormat(i18n.language, multiDay
-      ? { month: "2-digit", day: "2-digit", hour: "2-digit", minute: "2-digit", second: "2-digit" }
-      : { hour: "2-digit", minute: "2-digit", second: "2-digit" });
-  }, [i18n.language, range]);
+  // Rows show the time; a separator row marks each new day, so no range hides the date.
+  const timeFormat = useMemo(() => new Intl.DateTimeFormat(i18n.language, { hour: "2-digit", minute: "2-digit", second: "2-digit" }), [i18n.language]);
+  const dayFormat = useMemo(() => new Intl.DateTimeFormat(i18n.language, { weekday: "short", day: "numeric", month: "long", year: "numeric" }), [i18n.language]);
+  const noMatches = results?.entries.length === 0;
+  const clearSearch = () => update((next) => { next.delete("q"); next.delete("noise"); });
   const number = new Intl.NumberFormat(i18n.language);
 
   return (
@@ -256,21 +247,6 @@ export default function SearchTab({ serverId }: { serverId: string }) {
           </div>
         )}
 
-        {!query && (
-          <div className="flex flex-wrap items-center gap-1.5">
-            <span className="text-[11px] text-slate-400">{t("serverLogs.search.try")}</span>
-            {SUGGESTIONS.map((suggestion) => (
-              <button
-                key={suggestion.key}
-                type="button"
-                onClick={() => setQuery(suggestion.query)}
-                className="rounded-full border border-slate-600/70 px-2.5 py-0.5 text-[11px] text-slate-300 hover:border-[#b8282e]/60 hover:text-white cursor-pointer"
-              >
-                {t(`serverLogs.suggestions.${suggestion.key}`)}
-              </button>
-            ))}
-          </div>
-        )}
 
         <div className="flex flex-wrap items-center gap-2">
           <RangePicker value={range} onChange={setRange} />
@@ -301,7 +277,7 @@ export default function SearchTab({ serverId }: { serverId: string }) {
           </div>
         </div>
 
-        {histogram && (
+        {histogram && !noMatches && (
           <LogHistogram
             histogram={histogram}
             onZoom={(from, to) => setRange({ from, to })}
@@ -315,10 +291,23 @@ export default function SearchTab({ serverId }: { serverId: string }) {
         <Panel className="h-fit p-4 lg:sticky lg:top-4">
           {facets ? (
             <>
-              <div className="mb-3 text-xs text-slate-300">
-                {t("serverLogs.search.matches", { count: facets.total, formatted: number.format(facets.total) })}
+              <button
+                type="button"
+                onClick={() => setFacetsOpen((value) => !value)}
+                aria-expanded={facetsOpen}
+                className="flex w-full items-center gap-2 text-left text-xs text-slate-300 lg:pointer-events-none lg:mb-3 cursor-pointer"
+              >
+                <span className="flex-1">{t("serverLogs.search.matches", { count: facets.total, formatted: number.format(facets.total) })}</span>
+                {facets.total > 0 && (
+                  <span className="flex items-center gap-1 text-slate-400 lg:hidden">
+                    <SlidersHorizontal size={13} /> {t("serverLogs.facets.title")}
+                    <ChevronDown size={13} className={cn("transition-transform", facetsOpen && "rotate-180")} />
+                  </span>
+                )}
+              </button>
+              <div className={cn("mt-3 lg:mt-0 lg:block", facetsOpen ? "block" : "hidden")}>
+                <LogFacets facets={facets} query={query} onToggle={(key, value, exclude) => setQuery(toggleFilter(query, key, value, exclude))} />
               </div>
-              <LogFacets facets={facets} query={query} onToggle={(key, value, exclude) => setQuery(toggleFilter(query, key, value, exclude))} />
             </>
           ) : (
             <div className="flex justify-center py-6"><Loader2 size={18} className="animate-spin text-[#e04444]" /></div>
@@ -328,13 +317,32 @@ export default function SearchTab({ serverId }: { serverId: string }) {
         <Panel className="min-w-0 overflow-hidden">
           {loading && !results ? (
             <div className="flex justify-center py-16"><Loader2 size={22} className="animate-spin text-[#e04444]" /></div>
-          ) : results && results.entries.length === 0 ? (
-            <p className="p-8 text-center text-sm text-slate-300">{t("serverLogs.search.empty")}</p>
+          ) : results && noMatches ? (
+            <div className="space-y-3 p-8 text-center text-sm text-slate-300">
+              <p>{t("serverLogs.search.empty")}</p>
+              <div className="flex flex-wrap justify-center gap-2">
+                {!("preset" in range && range.preset === "all") && (
+                  <Button onClick={() => setRange({ preset: "all" })}>{t("serverLogs.search.emptyAllTime")}</Button>
+                )}
+                {query && <Button onClick={clearSearch}>{t("serverLogs.search.emptyClear")}</Button>}
+              </div>
+            </div>
           ) : results ? (
             <div className={cn(loading && "opacity-60 transition-opacity")}>
-              {results.entries.map((entry) => (
-                <LogEntryRow key={entry.id} entry={entry} pattern={pattern} timeFormat={timeFormat} onFilter={onFilter} onContext={setContextEntry} />
-              ))}
+              {results.entries.map((entry, index) => {
+                const day = new Date(entry.timestamp).toDateString();
+                const newDay = index === 0 || new Date(results.entries[index - 1].timestamp).toDateString() !== day;
+                return (
+                  <div key={entry.id}>
+                    {newDay && (
+                      <div className="border-b border-slate-800/60 bg-slate-950/95 px-3 py-1 text-[11px] font-semibold uppercase tracking-wider text-slate-400">
+                        {dayFormat.format(new Date(entry.timestamp))}
+                      </div>
+                    )}
+                    <LogEntryRow entry={entry} pattern={pattern} timeFormat={timeFormat} onFilter={onFilter} onContext={setContextEntry} />
+                  </div>
+                );
+              })}
               {results.nextCursor && (
                 <div className="flex justify-center p-3">
                   <Button onClick={() => void loadMore()} disabled={loadingMore}>

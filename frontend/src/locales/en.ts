@@ -9,8 +9,90 @@ export const en = {
     saving: "Saving...",
     done: "Done"
   },
+  actions: {
+    title: "Actions",
+    description: "Run common server commands",
+    offline: "The server is offline. Actions are available while it is running.",
+    execute: "Execute",
+    player: "Player",
+    choosePlayer: "Choose a player…",
+    typeOrChoosePlayer: "Type a name or choose an online player…",
+    typePlayer: "Player name",
+    offlineHint: "Works for offline players too: type the exact name.",
+    noPlayers: "No players are online right now.",
+    loadFailed: "Could not load the list of online players.",
+    reasonRequired: "Reason",
+    reason: "Reason (optional)",
+    reasonPlaceholder: "Shown to the player",
+    preview: "Command",
+    failed: "The command could not be sent.",
+    gameMode: {
+      title: "Game mode",
+      description: "Switch an online player between guest, survival and creative.",
+      mode: "Game mode",
+      chooseMode: "Choose a game mode…",
+      modes: { "0": "Guest", "1": "Survival", "2": "Creative" },
+      success: "Game mode of {{player}} set to {{mode}}."
+    },
+    teleport: {
+      title: "Teleport",
+      description: "Move an online player to a position.",
+      type: "Coordinate type",
+      coordinates: "Coordinates",
+      types: {
+        pretty: { label: "Map coordinates", hint: "As shown in the player's coordinates box (x y z)." },
+        absolute: { label: "Absolute coordinates", hint: "As shown on the debug screen (Ctrl + F3)." },
+        relative: { label: "Relative distance", hint: "Moves the player by this many blocks, e.g. 1 0 0 is one block along x." }
+      },
+      success: "{{player}} teleported to {{position}}."
+    },
+    warn: {
+      title: "Warn",
+      description: "Send an online player a warning with a reason.",
+      success: "{{player}} was warned."
+    },
+    kick: {
+      title: "Kick",
+      description: "Disconnect an online player from the server.",
+      success: "{{player}} was kicked."
+    },
+    ban: {
+      title: "Ban",
+      description: "Ban a player from the server.",
+      success: "{{player}} was banned."
+    },
+    hardban: {
+      title: "Hard ban",
+      description: "Permanently ban a player, online or not.",
+      success: "{{player}} was hard-banned."
+    },
+    landClaim: {
+      title: "Land claims",
+      description: "Give a player extra land claim allowance or areas, on top of their role.",
+      setting: "Setting",
+      settings: {
+        allowance: { label: "Extra claim allowance", hint: "Extra land claim allowance for this player (default 0)." },
+        maxAreas: { label: "Extra claim areas", hint: "Extra number of land claim areas for this player (default 0)." }
+      },
+      value: "Value",
+      valueHint: "A whole number from 0 to {{max}}.",
+      success: "{{setting}} of {{player}} set to {{value}}."
+    },
+    classReselect: {
+      title: "Allow class change",
+      description: "Let a player choose their class again once.",
+      success: "{{player}} can now choose their class again."
+    },
+    unban: {
+      title: "Unban",
+      description: "Lift a player's ban.",
+      hint: "Type the exact name of the banned player.",
+      success: "{{player}} was unbanned."
+    }
+  },
   navigation: {
     serverLogs: "Server logs",
+    actions: "Actions",
     overview: "Overview",
     server: "Server",
     files: "Files",
@@ -426,6 +508,19 @@ export const en = {
     loading_users: "Loading accounts...",
     th_username: "Username",
     th_2fa_status: "2FA Status",
+    th_role: "Role",
+    role_admin: "Admin",
+    role_moderator: "Moderator",
+    role_admin_desc: "Full access to every page and action.",
+    role_moderator_desc: "Read-only Overview, server log search, and their own account settings.",
+    cannot_change_own_role: "You cannot change your own role.",
+    change_password: "Change password",
+    change_password_desc: "At least 12 characters with upper- and lowercase letters, a digit, and a symbol.",
+    current_password: "Current password",
+    new_password: "New password",
+    confirm_password: "Repeat new password",
+    password_mismatch: "The new passwords do not match.",
+    password_changed: "Your password was changed.",
     th_actions: "Actions",
     badge_you: "You",
     "2fa_badge_enabled": "Active",
@@ -444,6 +539,8 @@ export const en = {
     unauthenticated: "Unable to sign in.",
     invalid_totp_code: "Incorrect 2FA verification code.",
     load_users: "Unable to load administrators list.",
+    change_role_failed: "Could not change the role.",
+    change_password_failed: "Could not change the password.",
     create_user_failed: "Registration failed. Verify username is unique and password meets requirements.",
     delete_user_failed: "Failed to delete administrative user.",
     setup_2fa: "Failed to initialize 2FA configuration.",
@@ -600,6 +697,7 @@ export const en = {
     }
   },
   serverLogs: {
+    levels: { audit: "Audit", verbosedebug: "Verbose debug", notification: "Notification", event: "Event", debug: "Debug", warning: "Warning", error: "Error", fatal: "Fatal", chat: "Chat" },
     title: "Server logs",
     description: "Search the game server's main, audit and debug logs",
     notConfigured: "Log analysis is not configured for this server.",
@@ -610,7 +708,7 @@ export const en = {
     },
     range: { "1h": "1 h", "6h": "6 h", "24h": "24 h", "7d": "7 days", "30d": "30 days", all: "All" },
     logs: { main: "Main", audit: "Audit", debug: "Debug", chat: "Chat" },
-    facets: { log: "Log", level: "Level", source: "Mod / source", player: "Player", action: "Action", exclude: "Exclude" },
+    facets: { title: "Filters", log: "Log", level: "Level", source: "Mod / source", player: "Player", action: "Action", exclude: "Exclude" },
     actions: {
       click: "Inventory click",
       move: "Moved item",
@@ -638,11 +736,13 @@ export const en = {
       other: "Other"
     },
     search: {
+      emptyAllTime: "Search all time",
+      emptyClear: "Clear the search",
+      placeholderShort: "Words or player: level: …",
       placeholder: "Search words, or type a filter: player: action: level: item: near: …",
       submit: "Search",
       clear: "Clear",
       help: "Search syntax",
-      try: "Try:",
       noise: "Show noise",
       noiseHint: "Include inventory clicks and \"too far away\" packets (most of the audit log)",
       live: "Live",
@@ -669,16 +769,6 @@ export const en = {
       loading: "Looking up values…",
       keys: "↑↓ choose · Tab or Enter to complete · Enter again to search · Esc to close"
     },
-    suggestions: {
-      errors: "Errors",
-      warnings: "Warnings",
-      commands: "Commands",
-      deaths: "Deaths",
-      joins: "Joins & leaves",
-      overloaded: "Server overloaded",
-      rejected: "Rejected positions",
-      broken: "Broken containers"
-    },
     help: {
       intro: "Words are matched as prefixes in any order. Filters combine: the same filter twice means either, different filters mean both. Click values in the left column or on a line to add filters.",
       words: { code: "firewood crate", text: "lines containing both words" },
@@ -703,6 +793,11 @@ export const en = {
     },
     context: { title: "Around this line", sameLog: "{{log}} only", close: "Close" },
     problems: {
+      severity: "Show",
+      showMore: "Show more",
+      showing: "Showing {{shown}} of {{total}}",
+      trendPoint_one: "{{count}} time",
+      trendPoint_other: "{{count}} times",
       level: { all: "All", error: "Errors", warning: "Warnings" },
       showMuted_one: "Show {{count}} muted",
       showMuted_other: "Show {{count}} muted",
@@ -718,6 +813,10 @@ export const en = {
       unmute: "Unmute"
     },
     players: {
+      showAll: "Show all {{count}}",
+      showLess: "Show less",
+      perDayActions: "Actions (without inventory clicks)",
+      perDayRejected: "Rejected position updates (lag or refused movement)",
       filter: "Filter players",
       empty: "No players in this time range.",
       pick: "Pick a player on the left, or look up who did what at a spot (x, z and a radius).",
@@ -742,6 +841,8 @@ export const en = {
       sessions: "Joins and leaves",
       analyticsHint: "Session lengths and connection quality are on the Analytics page.",
       location: {
+        heading: "Who was here?",
+        help: "Enter x and z (y optional) and a radius to see who did what at that spot.",
         x: "X",
         y: "Y",
         z: "Z",
@@ -754,6 +855,8 @@ export const en = {
       }
     },
     startups: {
+      sameAsBefore: "Same as the previous start",
+      retentionNote: "Only startups still in the indexed logs are listed. The game keeps about 5 days of log files; the panel keeps what it indexed for the configured retention.",
       empty: "No server starts in this time range.",
       state: { running: "Running", stopped: "Stopped cleanly", unclean: "Crashed / killed" },
       stateHint: {

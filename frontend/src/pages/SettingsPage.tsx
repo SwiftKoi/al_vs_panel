@@ -1,9 +1,11 @@
 import { useEffect, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { QRCodeSVG } from "qrcode.react";
-import { api, type UserResponse, type TwoFactorSetupResponse, ApiError } from "@/api/client";
+import { api, type PanelRole, type UserResponse, type TwoFactorSetupResponse, ApiError } from "@/api/client";
 import Button from "@/components/ui/Button";
 import LoginHistory from "@/components/settings/LoginHistory";
+import ChangePassword from "@/components/settings/ChangePassword";
+import { useSession } from "@/context/SessionContext";
 import { Shield, Users, UserPlus, Trash2, Key, CheckCircle, AlertTriangle } from "lucide-react";
 
 type SettingsTab = "security" | "users";
@@ -11,9 +13,8 @@ type SettingsTab = "security" | "users";
 export default function SettingsPage() {
   const { t } = useTranslation();
   const [activeTab, setActiveTab] = useState<SettingsTab>("security");
-
-  // Session & Current User
-  const [currentUserId, setCurrentUserId] = useState<string | null>(null);
+  const { user, isAdmin } = useSession();
+  const currentUserId = user.id;
 
   // Users List State
   const [users, setUsers] = useState<UserResponse[]>([]);
@@ -24,6 +25,7 @@ export default function SettingsPage() {
   const [isCreateModalOpen, setIsCreateModalOpen] = useState(false);
   const [newUsername, setNewUsername] = useState("");
   const [newPassword, setNewPassword] = useState("");
+  const [newRole, setNewRole] = useState<PanelRole>("Moderator");
   const [createError, setCreateError] = useState<string | null>(null);
   const [createBusy, setCreateBusy] = useState(false);
 
@@ -34,17 +36,6 @@ export default function SettingsPage() {
   const [verificationCode, setVerificationCode] = useState("");
   const [securityError, setSecurityError] = useState<string | null>(null);
   const [securityBusy, setSecurityBusy] = useState(false);
-
-  useEffect(() => {
-    // Get current logged-in user profile
-    void api.session()
-      .then((session) => {
-        if (session.authenticated && session.user) {
-          setCurrentUserId(session.user.id);
-        }
-      })
-      .catch(() => undefined);
-  }, []);
 
   // Fetch users & 2FA status
   useEffect(() => {
@@ -68,12 +59,8 @@ export default function SettingsPage() {
         setChecking2Fa(true);
         setSecurityError(null);
         try {
-          const list = await api.listUsers();
-          // Find current user's 2FA status
-          const current = list.find(u => u.id === currentUserId);
-          if (mounted && current) {
-            setTwoFactorEnabled(current.twoFactorEnabled);
-          }
+          const status = await api.twoFactorStatus();
+          if (mounted) setTwoFactorEnabled(status.enabled);
         } catch {
           // Fallback or ignore
         } finally {
@@ -82,12 +69,10 @@ export default function SettingsPage() {
       }
     }
 
-    if (currentUserId) {
-      void loadData();
-    }
+    void loadData();
 
     return () => { mounted = false; };
-  }, [activeTab, currentUserId, t]);
+  }, [activeTab, t]);
 
   async function handleSetup2Fa() {
     setSecurityError(null);
@@ -146,10 +131,11 @@ export default function SettingsPage() {
     setCreateError(null);
     setCreateBusy(true);
     try {
-      await api.createUser(newUsername, newPassword);
+      await api.createUser(newUsername, newPassword, newRole);
       setIsCreateModalOpen(false);
       setNewUsername("");
       setNewPassword("");
+      setNewRole("Moderator");
       // Refresh list
       const list = await api.listUsers();
       setUsers(list);
@@ -171,11 +157,21 @@ export default function SettingsPage() {
     }
   }
 
+  async function handleChangeRole(userId: string, role: PanelRole) {
+    setUsersError(null);
+    try {
+      const updated = await api.changeUserRole(userId, role);
+      setUsers(prev => prev.map(u => u.id === userId ? updated : u));
+    } catch (err) {
+      setUsersError(err instanceof ApiError && err.message ? err.message : t("errors.change_role_failed"));
+    }
+  }
+
   return (
     <div className="space-y-6 max-w-none">
       <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between border-b border-red-950/20 pb-4">
         <h1 className="text-xl sm:text-2xl font-bold font-serif tracking-wide text-slate-100 glow-text">{t("settings.title")}</h1>
-        <div className="flex gap-1.5 p-1 rounded-lg bg-slate-950/60 border border-red-950/20 backdrop-blur-sm shadow-inner select-none w-full sm:w-auto overflow-x-auto">
+        {isAdmin && <div className="flex gap-1.5 p-1 rounded-lg bg-slate-950/60 border border-red-950/20 backdrop-blur-sm shadow-inner select-none w-full sm:w-auto overflow-x-auto">
           <button
             onClick={() => setActiveTab("security")}
             className={`flex flex-1 sm:flex-none items-center justify-center gap-1.5 whitespace-nowrap px-3 py-1.5 text-xs font-semibold rounded-md transition-all cursor-pointer ${
@@ -198,7 +194,7 @@ export default function SettingsPage() {
             <Users size={14} className="text-[#e04444] shrink-0" />
             {t("settings.users_tab")}
           </button>
-        </div>
+        </div>}
       </div>
 
       {activeTab === "security" ? (
@@ -319,7 +315,8 @@ export default function SettingsPage() {
             </div>
           )}
         </div>
-        <LoginHistory />
+        <ChangePassword />
+        {isAdmin && <LoginHistory />}
         </>
       ) : (
         <div className="rounded-xl glass-panel p-6 shadow-xl space-y-4">
@@ -352,6 +349,7 @@ export default function SettingsPage() {
                 <thead className="bg-slate-800/60 text-slate-200">
                   <tr>
                     <th className="px-4 py-3 font-semibold">{t("settings.th_username")}</th>
+                    <th className="px-4 py-3 font-semibold">{t("settings.th_role")}</th>
                     <th className="px-4 py-3 font-semibold">{t("settings.th_2fa_status")}</th>
                     <th className="px-4 py-3 text-right font-semibold">{t("settings.th_actions")}</th>
                   </tr>
@@ -366,6 +364,20 @@ export default function SettingsPage() {
                             {t("settings.badge_you")}
                           </span>
                         )}
+                      </td>
+                      <td className="px-4 py-3 text-xs">
+                        <select
+                          aria-label={t("settings.th_role")}
+                          value={u.role}
+                          disabled={u.id === currentUserId}
+                          title={u.id === currentUserId ? t("settings.cannot_change_own_role") : undefined}
+                          onChange={(e) => void handleChangeRole(u.id, e.target.value as PanelRole)}
+                          className="h-8 rounded-md border border-slate-800 bg-slate-950/40 px-2 text-slate-200 outline-none focus:border-[#e04444] disabled:opacity-60"
+                        >
+                          {u.role === "" && <option value="">—</option>}
+                          <option value="Admin">{t("settings.role_admin")}</option>
+                          <option value="Moderator">{t("settings.role_moderator")}</option>
+                        </select>
                       </td>
                       <td className="px-4 py-3 text-xs">
                         {u.twoFactorEnabled ? (
@@ -393,7 +405,7 @@ export default function SettingsPage() {
                   ))}
                   {users.length === 0 && (
                     <tr>
-                      <td colSpan={3} className="px-4 py-8 text-center text-slate-500">
+                      <td colSpan={4} className="px-4 py-8 text-center text-slate-500">
                         {t("settings.no_users")}
                       </td>
                     </tr>
@@ -441,6 +453,20 @@ export default function SettingsPage() {
                       value={newPassword}
                       onChange={(e) => setNewPassword(e.target.value)}
                     />
+                  </label>
+                  <label className="mt-4 block text-xs font-semibold tracking-wider text-slate-300 uppercase">
+                    {t("settings.th_role")}
+                    <select
+                      className="mt-2 h-10 w-full rounded-md border border-red-950/45 bg-slate-950/40 px-3 text-slate-200 outline-none focus:border-[#e04444] focus:ring-2 focus:ring-[#b8282e]/25 transition-all duration-200 text-sm font-medium"
+                      value={newRole}
+                      onChange={(e) => setNewRole(e.target.value as PanelRole)}
+                    >
+                      <option value="Moderator">{t("settings.role_moderator")}</option>
+                      <option value="Admin">{t("settings.role_admin")}</option>
+                    </select>
+                    <span className="mt-1.5 block normal-case tracking-normal font-normal text-slate-400">
+                      {newRole === "Admin" ? t("settings.role_admin_desc") : t("settings.role_moderator_desc")}
+                    </span>
                   </label>
                   <div className="flex justify-end gap-2 pt-2">
                     <Button

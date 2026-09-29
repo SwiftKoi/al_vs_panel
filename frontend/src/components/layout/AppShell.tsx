@@ -5,6 +5,7 @@ import ServerSelector from "@/components/layout/ServerSelector";
 import NavigationMenu from "@/components/layout/NavigationMenu";
 import QuickActions from "@/components/layout/QuickActions";
 import { useTranslation } from "react-i18next";
+import { useSession } from "@/context/SessionContext";
 
 function FloatingEmbers() {
   const [particles] = useState(() =>
@@ -39,6 +40,7 @@ function FloatingEmbers() {
 
 export default function AppShell({ children, onLogout }: PropsWithChildren<{ onLogout: () => void }>) {
   const { t } = useTranslation();
+  const { isAdmin } = useSession();
 
   return (
     <div className="relative min-h-screen max-w-full overflow-x-hidden bg-[#0a0a0c] text-slate-200">
@@ -61,9 +63,12 @@ export default function AppShell({ children, onLogout }: PropsWithChildren<{ onL
 
           <NavigationMenu />
 
-          <div className="h-px bg-red-950/20 my-3" />
-
-          <QuickActions />
+          {isAdmin && (
+            <>
+              <div className="h-px bg-red-950/20 my-3" />
+              <QuickActions />
+            </>
+          )}
         </aside>
         <main className="p-4 sm:p-6 min-w-0 overflow-x-hidden">{children}</main>
       </div>

@@ -29,6 +29,7 @@ export default function LogFacets({
   const label = (key: Group["key"], value: string) => {
     if (key === "log") return t(`serverLogs.logs.${value}`, { defaultValue: value });
     if (key === "action") return t(`serverLogs.actions.${value}`, { defaultValue: value });
+    if (key === "level") return t(`serverLogs.levels.${value.toLowerCase()}`, { defaultValue: value });
     return value;
   };
 

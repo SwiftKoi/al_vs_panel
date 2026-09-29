@@ -140,6 +140,17 @@ public static class AuthenticationEndpoints
         return Results.Ok(result);
     }
 
+    public static async Task<IResult> TwoFactorStatusAsync(
+        IAuthenticationSession session,
+        ITwoFactorService twoFactorService,
+        CancellationToken cancellationToken)
+    {
+        var user = await session.GetCurrentUserAsync(cancellationToken)
+                   ?? throw new HttpException(StatusCodes.Status401Unauthorized, "Unauthorized", "Authentication required.");
+
+        return Results.Ok(new TwoFactorStatusResponse(await twoFactorService.IsTwoFactorEnabledAsync(user.Id, cancellationToken)));
+    }
+
     public static async Task<IResult> GetTwoFactorSetupAsync(
         IAuthenticationSession session,
         ITwoFactorService twoFactorService,
@@ -194,6 +205,32 @@ public static class AuthenticationEndpoints
 
         await twoFactorService.DisableTwoFactorAsync(user.Id, cancellationToken);
         return Results.Ok(new { Success = true });
+    }
+
+    public static async Task<IResult> ChangePasswordAsync(
+        ChangePasswordRequest request,
+        IAuthenticationSession session,
+        IAuthenticationService service,
+        CancellationToken cancellationToken)
+    {
+        var user = await session.GetCurrentUserAsync(cancellationToken);
+        if (user is null)
+        {
+            throw new HttpException(StatusCodes.Status401Unauthorized, "Unauthorized", "Authentication required.");
+        }
+
+        try
+        {
+            await service.ChangePasswordAsync(user.Id, request, cancellationToken);
+        }
+        catch (PasswordChangeFailedException exception)
+        {
+            throw new HttpException(StatusCodes.Status400BadRequest, "Password change failed", exception.Message);
+        }
+
+        // Changing the password rotates the security stamp; reissue this session's cookie so it stays valid.
+        await session.RefreshAsync(cancellationToken);
+        return Results.NoContent();
     }
 
     public static async Task<IResult> LogoutAsync(

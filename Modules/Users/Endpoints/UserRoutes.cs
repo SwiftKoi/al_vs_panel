@@ -14,6 +14,7 @@ public static class UserRoutes
         group.MapGet("/", UserEndpoints.ListAsync);
         group.MapPost("/", UserEndpoints.CreateAsync).RequireAntiforgery();
         group.MapDelete("/{id}", UserEndpoints.DeleteAsync).RequireAntiforgery();
+        group.MapPut("/{id}/role", UserEndpoints.ChangeRoleAsync).RequireAntiforgery();
 
         return endpoints;
     }

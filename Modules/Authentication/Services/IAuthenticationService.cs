@@ -17,6 +17,13 @@ public interface IAuthenticationService
     ///
     /// <exception cref="AuthenticationFailedException">Thrown when credentials are invalid.</exception>
     Task<AuthenticatedUser> AuthenticateAsync(LoginCommand command, CancellationToken cancellationToken);
+
+    /// <summary>
+    /// Changes the signed-in user's own password.
+    /// </summary>
+    ///
+    /// <exception cref="PasswordChangeFailedException">Thrown when a password is empty, the current one is wrong, or the new one fails the password policy.</exception>
+    Task ChangePasswordAsync(string userId, ChangePasswordRequest request, CancellationToken cancellationToken);
 }
 
 /// <summary>

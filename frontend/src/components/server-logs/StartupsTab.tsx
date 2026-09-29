@@ -73,6 +73,11 @@ export default function StartupsTab({ serverId }: { serverId: string }) {
             // Boots are newest first; this run lasted until the next (newer) start, or until now.
             const endedAt = boot.stoppedAt ?? (index > 0 ? boots[index - 1].startedAt : null);
             const isOpen = open === boot.startedAt;
+            // Most starts repeat the same known mod warnings; only a change from the previous start is news.
+            const previous = boots[index + 1];
+            const errorDelta = previous ? boot.startupErrors - previous.startupErrors : null;
+            const warningDelta = previous ? boot.startupWarnings - previous.startupWarnings : null;
+            const unchanged = "border-slate-600/60 bg-transparent text-slate-400 hover:text-slate-200";
             return (
               <Panel key={boot.startedAt} className="p-4">
                 <div className="flex flex-wrap items-center gap-x-4 gap-y-2">
@@ -91,15 +96,17 @@ export default function StartupsTab({ serverId }: { serverId: string }) {
                       ? t("serverLogs.startups.startup", { seconds: boot.startupSeconds.toFixed(0) })
                       : t("serverLogs.startups.neverReady")}
                   </span>
-                  <div className="ml-auto flex items-center gap-2 text-xs">
+                  <div className="flex flex-wrap items-center gap-2 text-xs sm:ml-auto">
                     {boot.startupErrors > 0 && (
-                      <button type="button" onClick={() => openStartupProblems(boot, "error")} className="rounded border border-rose-500/40 bg-rose-500/10 px-1.5 text-rose-300 hover:text-rose-200 cursor-pointer">
+                      <button type="button" onClick={() => openStartupProblems(boot, "error")} title={errorDelta === 0 ? t("serverLogs.startups.sameAsBefore") : undefined} className={cn("rounded border px-1.5 cursor-pointer", errorDelta === 0 ? unchanged : "border-rose-500/40 bg-rose-500/10 text-rose-300 hover:text-rose-200")}>
                         {t("serverLogs.startups.errors", { count: boot.startupErrors })}
+                        {errorDelta !== null && errorDelta !== 0 && <span className="ml-1 font-semibold">({errorDelta > 0 ? "+" : "−"}{Math.abs(errorDelta)})</span>}
                       </button>
                     )}
                     {boot.startupWarnings > 0 && (
-                      <button type="button" onClick={() => openStartupProblems(boot, "warning")} className="rounded border border-amber-500/40 bg-amber-500/10 px-1.5 text-amber-300 hover:text-amber-200 cursor-pointer">
+                      <button type="button" onClick={() => openStartupProblems(boot, "warning")} title={warningDelta === 0 ? t("serverLogs.startups.sameAsBefore") : undefined} className={cn("rounded border px-1.5 cursor-pointer", warningDelta === 0 ? unchanged : "border-amber-500/40 bg-amber-500/10 text-amber-300 hover:text-amber-200")}>
                         {t("serverLogs.startups.warnings", { count: boot.startupWarnings })}
+                        {warningDelta !== null && warningDelta !== 0 && <span className="ml-1 font-semibold">({warningDelta > 0 ? "+" : "−"}{Math.abs(warningDelta)})</span>}
                       </button>
                     )}
                   </div>
@@ -131,6 +138,7 @@ export default function StartupsTab({ serverId }: { serverId: string }) {
               </Panel>
             );
           })}
+          <p className="px-1 text-[11px] text-slate-400">{t("serverLogs.startups.retentionNote")}</p>
         </div>
       )}
     </div>

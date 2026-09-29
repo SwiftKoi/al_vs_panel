@@ -75,7 +75,7 @@ export default function ServerLogsPage() {
         <Panel className="p-6 text-sm text-slate-300">{t("serverLogs.notConfigured")}</Panel>
       ) : (
         <>
-          <div role="tablist" className="flex gap-1 border-b border-red-950/30 overflow-x-auto">
+          <div role="tablist" className="scroll-fade-x flex gap-1 border-b border-red-950/30 overflow-x-auto">
             {TABS.map((id) => (
               <button
                 key={id}

@@ -1,3 +1,4 @@
+using AlegacyWebPanel.Core.Authorization;
 using AlegacyWebPanel.Core.Abstractions;
 using AlegacyWebPanel.Modules.Users.Configuration;
 using Microsoft.AspNetCore.Identity;
@@ -8,6 +9,7 @@ namespace AlegacyWebPanel.Modules.Users.Services;
 
 public sealed class AdminSeeder(
     UserManager<IdentityUser> userManager,
+    RoleManager<IdentityRole> roleManager,
     ISecretReader secretReader,
     IOptions<UsersOptions> options,
     DbContext db)
@@ -15,6 +17,14 @@ public sealed class AdminSeeder(
     public async Task SeedAsync(CancellationToken cancellationToken = default)
     {
         await db.Database.MigrateAsync(cancellationToken);
+
+        foreach (var role in PanelRoles.All)
+        {
+            if (!await roleManager.RoleExistsAsync(role))
+            {
+                await roleManager.CreateAsync(new IdentityRole(role));
+            }
+        }
 
         var username = options.Value.Admin.Username;
         var user = await userManager.FindByNameAsync(username);
@@ -33,5 +43,7 @@ public sealed class AdminSeeder(
             var errors = string.Join(", ", result.Errors.Select(e => e.Description));
             throw new InvalidOperationException($"Could not seed default admin user: {errors}");
         }
+
+        await userManager.AddToRoleAsync(adminUser, PanelRoles.Admin);
     }
 }

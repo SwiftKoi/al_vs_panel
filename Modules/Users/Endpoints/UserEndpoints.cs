@@ -37,6 +37,46 @@ public static class UserEndpoints
         {
             throw new HttpException(StatusCodes.Status409Conflict, "Conflict", e.Message);
         }
+        catch (InvalidRoleException e)
+        {
+            throw new HttpException(StatusCodes.Status400BadRequest, "Registration failed", e.Message);
+        }
+    }
+
+    public static async Task<IResult> ChangeRoleAsync(
+        string id,
+        ChangeRoleRequest request,
+        IUserService userService,
+        UserManager<IdentityUser> userManager,
+        ClaimsPrincipal claimsPrincipal,
+        CancellationToken cancellationToken)
+    {
+        var currentUser = await userManager.GetUserAsync(claimsPrincipal);
+        if (currentUser is null)
+        {
+            throw new HttpException(StatusCodes.Status401Unauthorized, "Unauthorized", "Authentication required.");
+        }
+
+        try
+        {
+            return Results.Ok(await userService.ChangeRoleAsync(id, request.Role, currentUser.Id, cancellationToken));
+        }
+        catch (InvalidRoleException e)
+        {
+            throw new HttpException(StatusCodes.Status400BadRequest, "Operation failed", e.Message);
+        }
+        catch (SelfRoleChangeException e)
+        {
+            throw new HttpException(StatusCodes.Status400BadRequest, "Operation failed", e.Message);
+        }
+        catch (LastAdminException e)
+        {
+            throw new HttpException(StatusCodes.Status409Conflict, "Conflict", e.Message);
+        }
+        catch (UserNotFoundException e)
+        {
+            throw new HttpException(StatusCodes.Status404NotFound, "Not Found", e.Message);
+        }
     }
 
     public static async Task<IResult> DeleteAsync(
@@ -64,6 +104,10 @@ public static class UserEndpoints
         catch (UserNotFoundException e)
         {
             throw new HttpException(StatusCodes.Status404NotFound, "Not Found", e.Message);
+        }
+        catch (LastAdminException e)
+        {
+            throw new HttpException(StatusCodes.Status409Conflict, "Conflict", e.Message);
         }
     }
 }

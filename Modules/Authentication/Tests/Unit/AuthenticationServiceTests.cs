@@ -13,7 +13,7 @@ public sealed class AuthenticationServiceTests
     {
         var repository = new FakeAuthenticationRepository
         {
-            User = new AuthenticatedUser("1", "admin"),
+            User = new AuthenticatedUser("1", "admin", "Admin"),
             PasswordIsValid = true
         };
         var service = new AuthenticationService(repository, NullLogger<AuthenticationService>.Instance);
@@ -32,6 +32,39 @@ public sealed class AuthenticationServiceTests
 
         await Assert.ThrowsAsync<AuthenticationFailedException>(() =>
             service.AuthenticateAsync(new LoginCommand("admin", "wrong"), CancellationToken.None));
+    }
+
+    [Fact]
+    public async Task ChangePassword_passes_both_passwords_to_the_repository()
+    {
+        var repository = new FakeAuthenticationRepository();
+        var service = new AuthenticationService(repository, NullLogger<AuthenticationService>.Instance);
+
+        await service.ChangePasswordAsync("1", new ChangePasswordRequest("old", "new"), CancellationToken.None);
+
+        Assert.Equal(("1", "old", "new"), repository.PasswordChange);
+    }
+
+    [Fact]
+    public async Task ChangePassword_rejects_empty_passwords()
+    {
+        var repository = new FakeAuthenticationRepository();
+        var service = new AuthenticationService(repository, NullLogger<AuthenticationService>.Instance);
+
+        await Assert.ThrowsAsync<PasswordChangeFailedException>(() =>
+            service.ChangePasswordAsync("1", new ChangePasswordRequest("old", ""), CancellationToken.None));
+        Assert.Null(repository.PasswordChange);
+    }
+
+    [Fact]
+    public async Task ChangePassword_translates_repository_errors_to_domain_failure()
+    {
+        var repository = new FakeAuthenticationRepository { PasswordChangeErrors = ["Incorrect password."] };
+        var service = new AuthenticationService(repository, NullLogger<AuthenticationService>.Instance);
+
+        var exception = await Assert.ThrowsAsync<PasswordChangeFailedException>(() =>
+            service.ChangePasswordAsync("1", new ChangePasswordRequest("wrong", "new"), CancellationToken.None));
+        Assert.Contains("Incorrect password.", exception.Message);
     }
 
     private sealed class FakeAuthenticationRepository : IAuthenticationRepository
@@ -53,5 +86,14 @@ public sealed class AuthenticationServiceTests
 
         public Task CreateAdminAsync(string username, string password, CancellationToken cancellationToken) =>
             Task.CompletedTask;
+
+        public IReadOnlyList<string> PasswordChangeErrors { get; init; } = [];
+        public (string, string, string)? PasswordChange { get; private set; }
+
+        public Task<IReadOnlyList<string>> ChangePasswordAsync(string userId, string currentPassword, string newPassword, CancellationToken cancellationToken)
+        {
+            PasswordChange = (userId, currentPassword, newPassword);
+            return Task.FromResult(PasswordChangeErrors);
+        }
     }
 }

@@ -67,8 +67,8 @@ public sealed class UserEndpointTests : IDisposable
         {
             Users = new[]
             {
-                new UserResponse("1", "admin1", false),
-                new UserResponse("2", "admin2", true)
+                new UserResponse("1", "admin1", false, "Admin"),
+                new UserResponse("2", "admin2", true, "Moderator")
             }
         };
 
@@ -85,7 +85,7 @@ public sealed class UserEndpointTests : IDisposable
     public async Task Create_coordinates_service_and_returns_created()
     {
         var service = new FakeUserService();
-        var request = new CreateUserRequest("newadmin", "Password123!");
+        var request = new CreateUserRequest("newadmin", "Password123!", "Admin");
 
         var result = await UserEndpoints.CreateAsync(request, service, CancellationToken.None);
 
@@ -98,7 +98,7 @@ public sealed class UserEndpointTests : IDisposable
     public async Task Create_translates_domain_exceptions()
     {
         var service = new FakeUserService { FailOnCreate = true };
-        var request = new CreateUserRequest("duplicate", "Password123!");
+        var request = new CreateUserRequest("duplicate", "Password123!", "Admin");
 
         await Assert.ThrowsAsync<HttpException>(() =>
             UserEndpoints.CreateAsync(request, service, CancellationToken.None));
@@ -111,7 +111,7 @@ public sealed class UserEndpointTests : IDisposable
         await _userManager.CreateAsync(currentUser, "Password123!");
 
         var service = new FakeUserService();
-        var session = new FakeAuthenticationSession { CurrentUser = new AuthenticatedUser(currentUser.Id, currentUser.UserName) };
+        var session = new FakeAuthenticationSession { CurrentUser = new AuthenticatedUser(currentUser.Id, currentUser.UserName, "Admin") };
 
         var claims = new[] { new Claim(ClaimTypes.NameIdentifier, currentUser.Id), new Claim(ClaimTypes.Name, currentUser.UserName) };
         var claimsPrincipal = new ClaimsPrincipal(new ClaimsIdentity(claims, "Test"));
@@ -133,6 +133,53 @@ public sealed class UserEndpointTests : IDisposable
             UserEndpoints.DeleteAsync("target_id", service, _userManager, claimsPrincipal, CancellationToken.None));
     }
 
+    [Fact]
+    public async Task ChangeRole_passes_current_user_and_returns_updated_user()
+    {
+        var service = new FakeUserService();
+        var principal = await CreatePrincipalAsync();
+
+        var result = await UserEndpoints.ChangeRoleAsync("target_id", new ChangeRoleRequest("Moderator"), service, _userManager, principal, CancellationToken.None);
+
+        var ok = Assert.IsType<Ok<UserResponse>>(result);
+        Assert.Equal("Moderator", ok.Value!.Role);
+        Assert.Equal(_currentUserId, service.CurrentUserId);
+    }
+
+    [Theory]
+    [InlineData("invalid", StatusCodes.Status400BadRequest)]
+    [InlineData("self", StatusCodes.Status400BadRequest)]
+    [InlineData("lastAdmin", StatusCodes.Status409Conflict)]
+    [InlineData("missing", StatusCodes.Status404NotFound)]
+    public async Task ChangeRole_translates_domain_failures(string failure, int expectedStatus)
+    {
+        Exception domainFailure = failure switch
+        {
+            "invalid" => new InvalidRoleException("Owner"),
+            "self" => new SelfRoleChangeException(),
+            "lastAdmin" => new LastAdminException(),
+            _ => new UserNotFoundException("target_id")
+        };
+        var service = new FakeUserService { RoleChangeFailure = domainFailure };
+        var principal = await CreatePrincipalAsync();
+
+        var exception = await Assert.ThrowsAsync<HttpException>(() =>
+            UserEndpoints.ChangeRoleAsync("target_id", new ChangeRoleRequest("Moderator"), service, _userManager, principal, CancellationToken.None));
+
+        Assert.Equal(expectedStatus, exception.StatusCode);
+    }
+
+    private string? _currentUserId;
+
+    private async Task<ClaimsPrincipal> CreatePrincipalAsync()
+    {
+        var currentUser = new IdentityUser { UserName = "current", Email = "current@example.com" };
+        await _userManager.CreateAsync(currentUser, "Password123!");
+        _currentUserId = currentUser.Id;
+        var claims = new[] { new Claim(ClaimTypes.NameIdentifier, currentUser.Id), new Claim(ClaimTypes.Name, currentUser.UserName) };
+        return new ClaimsPrincipal(new ClaimsIdentity(claims, "Test"));
+    }
+
     private sealed class FakeUserService : IUserService
     {
         public IEnumerable<UserResponse> Users { get; set; } = Array.Empty<UserResponse>();
@@ -149,7 +196,7 @@ public sealed class UserEndpointTests : IDisposable
             {
                 throw new UserAlreadyExistsException(request.Username);
             }
-            return Task.FromResult(new UserResponse("123", request.Username, false));
+            return Task.FromResult(new UserResponse("123", request.Username, false, request.Role));
         }
 
         public Task DeleteUserAsync(string userId, string currentUserId, CancellationToken cancellationToken)
@@ -157,6 +204,19 @@ public sealed class UserEndpointTests : IDisposable
             DeletedUserId = userId;
             CurrentUserId = currentUserId;
             return Task.CompletedTask;
+        }
+
+        public Exception? RoleChangeFailure { get; init; }
+
+        public Task<UserResponse> ChangeRoleAsync(string userId, string role, string currentUserId, CancellationToken cancellationToken)
+        {
+            if (RoleChangeFailure is not null)
+            {
+                throw RoleChangeFailure;
+            }
+
+            CurrentUserId = currentUserId;
+            return Task.FromResult(new UserResponse(userId, "target", false, role));
         }
     }
 

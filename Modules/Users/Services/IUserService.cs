@@ -7,4 +7,5 @@ public interface IUserService
     Task<IEnumerable<UserResponse>> ListUsersAsync(CancellationToken cancellationToken);
     Task<UserResponse> CreateUserAsync(CreateUserRequest request, CancellationToken cancellationToken);
     Task DeleteUserAsync(string userId, string currentUserId, CancellationToken cancellationToken);
+    Task<UserResponse> ChangeRoleAsync(string userId, string role, string currentUserId, CancellationToken cancellationToken);
 }

@@ -27,5 +27,24 @@ public sealed class AuthenticationService(
 
         logger.LogInformation("User {Username} authenticated", user.Username);
         return user;
+        }
+
+    public async Task ChangePasswordAsync(
+        string userId,
+        ChangePasswordRequest request,
+        CancellationToken cancellationToken)
+    {
+        if (string.IsNullOrEmpty(request.CurrentPassword) || string.IsNullOrEmpty(request.NewPassword))
+        {
+            throw new PasswordChangeFailedException("Both passwords are required.");
+        }
+
+        var errors = await repository.ChangePasswordAsync(userId, request.CurrentPassword, request.NewPassword, cancellationToken);
+        if (errors.Count > 0)
+        {
+            throw new PasswordChangeFailedException(string.Join(" ", errors));
+        }
+
+        logger.LogInformation("User {UserId} changed their password", userId);
     }
 }

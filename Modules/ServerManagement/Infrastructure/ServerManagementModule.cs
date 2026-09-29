@@ -23,6 +23,7 @@ public static class ServerManagementModule
         services.AddSingleton<IServerRepository, ConfigurationServerRepository>();
         services.AddSingleton<IServerLifecycleOperationGuard, ServerLifecycleOperationGuard>();
         services.AddScoped<IServerManagementService, ServerManagementService>();
+        services.AddScoped<IServerActionsService, ServerActionsService>();
         return services;
     }
 }

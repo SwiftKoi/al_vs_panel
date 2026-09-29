@@ -28,7 +28,7 @@ function Section({ title, children, empty }: { title: string; children: ReactNod
   const { t } = useTranslation();
   return (
     <div>
-      <h3 className="mb-2 text-[11px] font-semibold uppercase tracking-wider text-slate-400">{title}</h3>
+      <div role="heading" aria-level={3} className="mb-2 text-[11px] font-semibold uppercase tracking-wider text-slate-400">{title}</div>
       {empty ? <p className="text-xs italic text-slate-400">{t("serverLogs.players.none")}</p> : children}
     </div>
   );
@@ -38,17 +38,17 @@ function ItemTable({ items, onItem }: { items: ItemTotal[]; onItem: (item: strin
   const { t, i18n } = useTranslation();
   const number = new Intl.NumberFormat(i18n.language);
   return (
-    <table className="w-full text-xs">
+    <table className="w-full table-fixed text-xs">
       <tbody>
         {items.map((item) => (
           <tr key={item.item} className="border-b border-slate-800/60 last:border-0">
             <td className="py-1 pr-2">
-              <button type="button" onClick={() => onItem(item.item)} className="truncate text-left font-mono text-slate-200 hover:text-white hover:underline cursor-pointer">
+              <button type="button" onClick={() => onItem(item.item)} className="break-all text-left font-mono text-slate-200 hover:text-white hover:underline cursor-pointer">
                 {item.item}
               </button>
             </td>
-            <td className="py-1 text-right tabular-nums text-slate-100">{number.format(item.quantity)}</td>
-            <td className="py-1 pl-2 text-right tabular-nums text-slate-400" title={t("serverLogs.players.timesHint")}>{number.format(item.events)}×</td>
+            <td className="w-12 py-1 text-right align-top tabular-nums text-slate-100">{number.format(item.quantity)}</td>
+            <td className="w-12 py-1 pl-2 text-right align-top tabular-nums text-slate-400" title={t("serverLogs.players.timesHint")}>{number.format(item.events)}×</td>
           </tr>
         ))}
       </tbody>
@@ -56,16 +56,29 @@ function ItemTable({ items, onItem }: { items: ItemTotal[]; onItem: (item: strin
   );
 }
 
+const ENTRY_PREVIEW = 8;
+
+/** Newest lines first; long lists show a preview and expand in place instead of scrolling inside the page. */
 function EntryList({ entries, format }: { entries: LogEntry[]; format: Intl.DateTimeFormat }) {
+  const { t } = useTranslation();
+  const [all, setAll] = useState(false);
+  const shown = all ? entries : entries.slice(0, ENTRY_PREVIEW);
   return (
-    <ul className="max-h-64 space-y-0.5 overflow-y-auto font-mono text-[11px]">
-      {entries.map((entry) => (
-        <li key={entry.id} className="flex gap-2">
-          <span className="shrink-0 tabular-nums text-slate-400">{format.format(new Date(entry.timestamp))}</span>
-          <span className="break-words text-slate-200">{entry.message}</span>
-        </li>
-      ))}
-    </ul>
+    <div>
+      <ul className="space-y-1 font-mono text-[11px]">
+        {shown.map((entry) => (
+          <li key={entry.id} className="flex gap-2">
+            <span className="shrink-0 tabular-nums text-slate-400">{format.format(new Date(entry.timestamp))}</span>
+            <span className="min-w-0 break-all text-slate-200">{entry.message}</span>
+          </li>
+        ))}
+      </ul>
+      {entries.length > ENTRY_PREVIEW && (
+        <button type="button" onClick={() => setAll((value) => !value)} className="mt-1.5 text-[11px] text-sky-300 hover:text-sky-200 cursor-pointer">
+          {all ? t("serverLogs.players.showLess") : t("serverLogs.players.showAll", { count: entries.length })}
+        </button>
+      )}
+    </div>
   );
 }
 
@@ -94,6 +107,7 @@ export default function PlayersTab({ serverId }: { serverId: string }) {
 
   const number = new Intl.NumberFormat(i18n.language);
   const dateTime = useMemo(() => new Intl.DateTimeFormat(i18n.language, { dateStyle: "short", timeStyle: "short" }), [i18n.language]);
+  const dayLabel = useMemo(() => new Intl.DateTimeFormat(i18n.language, { day: "numeric", month: "short" }), [i18n.language]);
   const rangeParams = useMemo(() => resolveRange(range), [range]);
 
   const update = (change: (next: URLSearchParams) => void, push = false) => setParams((current) => {
@@ -160,10 +174,10 @@ export default function PlayersTab({ serverId }: { serverId: string }) {
 
   return (
     <div className="space-y-4">
-      <Panel className="flex flex-wrap items-end gap-4 p-4">
+      <Panel className="space-y-4 p-4">
         <RangePicker value={range} onChange={(value: TimeRange) => update((next) => writeRange(next, value))} presets={PRESETS} />
         <form
-          className="ml-auto flex flex-wrap items-end gap-2"
+          className="flex flex-wrap items-end gap-2 border-t border-slate-800/70 pt-4"
           onSubmit={(event) => {
             event.preventDefault();
             const x = Number.parseInt(form.x, 10);
@@ -173,9 +187,14 @@ export default function PlayersTab({ serverId }: { serverId: string }) {
             showPlace(x, Number.isNaN(y as number) ? null : y, z, Number.parseInt(form.r, 10) || 32);
           }}
         >
-          <MapPin size={16} className="mb-2 text-slate-400" />
+          <div className="w-full">
+            <div className="flex items-center gap-1.5 text-xs font-semibold text-slate-200">
+              <MapPin size={14} className="text-sky-300" /> {t("serverLogs.players.location.heading")}
+            </div>
+            <p className="mt-0.5 text-[11px] text-slate-400">{t("serverLogs.players.location.help")}</p>
+          </div>
           {(["x", "y", "z", "r"] as const).map((key) => (
-            <label key={key} className="w-24 text-[11px] uppercase tracking-wide text-slate-400">
+            <label key={key} className="w-[calc(50%-0.25rem)] text-[11px] uppercase tracking-wide text-slate-400 sm:w-24">
               {t(`serverLogs.players.location.${key}`)}
               <input
                 value={form[key]}
@@ -186,7 +205,9 @@ export default function PlayersTab({ serverId }: { serverId: string }) {
               />
             </label>
           ))}
-          <Button type="submit" className="h-8">{t("serverLogs.players.location.submit")}</Button>
+          <Button type="submit" variant="primary" className="h-8 w-full sm:w-auto">
+            <Search size={13} /> {t("serverLogs.players.location.submit")}
+          </Button>
         </form>
       </Panel>
 
@@ -200,7 +221,7 @@ export default function PlayersTab({ serverId }: { serverId: string }) {
           ) : visiblePlayers.length === 0 ? (
             <p className="py-4 text-center text-xs text-slate-400">{t("serverLogs.players.empty")}</p>
           ) : (
-            <ul className="max-h-[70vh] space-y-0.5 overflow-y-auto">
+            <ul className="max-h-80 space-y-0.5 overflow-y-auto pb-6 [mask-image:linear-gradient(to_bottom,black_calc(100%-2rem),transparent)] lg:max-h-[70vh]">
               {visiblePlayers.map((player) => (
                 <li key={player.name}>
                   <button
@@ -235,7 +256,7 @@ export default function PlayersTab({ serverId }: { serverId: string }) {
             <Panel className="space-y-4 p-4">
               <div className="flex flex-wrap items-center gap-2">
                 <Crosshair size={16} className="text-sky-300" />
-                <h2 className="font-serif text-sm font-bold text-slate-100">
+                <h2 className="font-sans text-sm font-bold text-slate-100">
                   {t("serverLogs.players.location.title", { x: place.x, y: place.y ?? "—", z: place.z, radius: place.radius })}
                 </h2>
                 <Button className="ml-auto h-8" onClick={() => openSearch(formatToken("near", nearValue(place.x, place.y, place.z, place.radius)))}>
@@ -272,7 +293,7 @@ export default function PlayersTab({ serverId }: { serverId: string }) {
                                 ))}
                               </div>
                             </td>
-                            <td className="whitespace-nowrap py-1.5 text-right text-[11px] text-slate-400">
+                            <td className="hidden whitespace-nowrap py-1.5 text-right text-[11px] text-slate-400 sm:table-cell">
                               {dateTime.format(new Date(player.firstSeen))} – {dateTime.format(new Date(player.lastSeen))}
                             </td>
                           </tr>
@@ -299,7 +320,7 @@ export default function PlayersTab({ serverId }: { serverId: string }) {
             <Panel className="space-y-5 p-4">
               <div className="flex flex-wrap items-center gap-2">
                 <User size={16} className="text-emerald-300" />
-                <h2 className="font-serif text-base font-bold text-slate-100">{activity.name}</h2>
+                <h2 className="font-sans text-base font-bold text-slate-100">{activity.name}</h2>
                 {activity.firstSeen && activity.lastSeen && (
                   <span className="text-xs text-slate-400">{dateTime.format(new Date(activity.firstSeen))} – {dateTime.format(new Date(activity.lastSeen))}</span>
                 )}
@@ -310,7 +331,7 @@ export default function PlayersTab({ serverId }: { serverId: string }) {
 
               {activity.days.length > 0 && (
                 <Section title={t("serverLogs.players.perDay")}>
-                  <div className="flex h-16 items-end gap-1">
+                  <div className="flex h-16 items-end gap-1 border-b border-slate-700/70">
                     {activity.days.map((day) => (
                       <div
                         key={day.day}
@@ -322,7 +343,19 @@ export default function PlayersTab({ serverId }: { serverId: string }) {
                       </div>
                     ))}
                   </div>
-                  <p className="mt-1 text-[11px] text-slate-400">{t("serverLogs.players.perDayLegend")}</p>
+                  <div className="mt-1 flex gap-1 text-[10px] tabular-nums text-slate-400">
+                    {activity.days.map((day, index) => (
+                      <span key={day.day} className="flex-1 truncate text-center">
+                        {activity.days.length <= 14 || index % Math.ceil(activity.days.length / 7) === 0 ? dayLabel.format(new Date(day.day)) : ""}
+                      </span>
+                    ))}
+                  </div>
+                  <p className="mt-1.5 flex flex-wrap gap-x-3 text-[11px] text-slate-400">
+                    <span className="flex items-center gap-1"><span className="h-2 w-2 rounded-sm bg-[#b8282e]/70" /> {t("serverLogs.players.perDayActions")}</span>
+                    {activity.days.some((day) => day.rejectedPositions > 0) && (
+                      <span className="flex items-center gap-1"><span className="h-2 w-2 rounded-sm bg-amber-400/60" /> {t("serverLogs.players.perDayRejected")}</span>
+                    )}
+                  </p>
                 </Section>
               )}
 
@@ -351,7 +384,7 @@ export default function PlayersTab({ serverId }: { serverId: string }) {
                 <Section title={t("serverLogs.players.places")} empty={activity.places.length === 0}>
                   <ul className="space-y-0.5 text-xs">
                     {activity.places.map((spot) => (
-                      <li key={`${spot.x},${spot.z}`} className="flex items-center justify-between gap-2">
+                      <li key={`${spot.x},${spot.z}`} className="flex flex-wrap items-center justify-between gap-x-2">
                         <button type="button" onClick={() => showPlace(spot.x, spot.y, spot.z)} className="flex items-center gap-1 font-mono text-sky-300 hover:text-sky-200 cursor-pointer">
                           <Crosshair size={11} /> {spot.x}, {spot.y ?? "—"}, {spot.z}
                         </button>
@@ -364,8 +397,8 @@ export default function PlayersTab({ serverId }: { serverId: string }) {
                   <ul className="space-y-0.5 text-xs">
                     {activity.kills.map((kill) => (
                       <li key={kill.value} className="flex justify-between gap-2">
-                        <span className="truncate font-mono text-slate-200">{kill.value}</span>
-                        <span className="tabular-nums text-slate-300">{number.format(kill.count)}</span>
+                        <span className="min-w-0 break-all font-mono text-slate-200">{kill.value}</span>
+                        <span className="shrink-0 tabular-nums text-slate-300">{number.format(kill.count)}</span>
                       </li>
                     ))}
                   </ul>

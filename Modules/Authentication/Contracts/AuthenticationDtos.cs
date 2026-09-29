@@ -4,7 +4,9 @@ public sealed record LoginRequest(string Username, string Password);
 
 public sealed record LoginCommand(string Username, string Password);
 
-public sealed record AuthenticatedUser(string Id, string Username);
+public sealed record AuthenticatedUser(string Id, string Username, string Role);
+
+public sealed record ChangePasswordRequest(string CurrentPassword, string NewPassword);
 
 public sealed record LoginResponse(
     bool Authenticated,
@@ -18,6 +20,8 @@ public sealed record CsrfTokenResponse(string Token);
 public sealed record TwoFactorLoginRequest(string Code);
 
 public sealed record EnableTwoFactorRequest(string Code);
+
+public sealed record TwoFactorStatusResponse(bool Enabled);
 
 public sealed record TwoFactorSetupResponse(string SharedSecret, string ProvisioningUri);
 

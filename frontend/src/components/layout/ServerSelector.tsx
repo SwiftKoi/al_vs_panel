@@ -21,12 +21,12 @@ export default function ServerSelector() {
   }, []);
 
   return (
-    <div className="relative" ref={dropdownRef}>
+    <div className="relative min-w-0" ref={dropdownRef}>
       {/* Selector Trigger Button */}
       <button
         onClick={() => setIsOpen(!isOpen)}
         disabled={loading || servers.length === 0}
-        className="-ml-0.5 flex h-8 items-center gap-2 rounded-md px-2.5 text-xs text-slate-300 transition hover:bg-red-950/15 hover:text-white focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-red-500/50 cursor-pointer"
+        className="-ml-0.5 flex h-8 max-w-full items-center gap-2 rounded-md px-2.5 text-xs text-slate-300 transition hover:bg-red-950/15 hover:text-white focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-red-500/50 cursor-pointer"
       >
         <Server
           size={16}
@@ -38,7 +38,7 @@ export default function ServerSelector() {
                 : "text-slate-500"
           }`}
         />
-        <span className="font-semibold text-slate-200 truncate max-w-[180px]">
+        <span className="min-w-0 font-semibold text-slate-200 truncate sm:max-w-[180px]">
           {loading
             ? t("servers.loading")
             : error
@@ -47,7 +47,7 @@ export default function ServerSelector() {
         </span>
         <ChevronDown
           size={14}
-          className={`text-slate-500 transition-transform ${isOpen ? "rotate-180" : ""}`}
+          className={`shrink-0 text-slate-500 transition-transform ${isOpen ? "rotate-180" : ""}`}
         />
       </button>
 

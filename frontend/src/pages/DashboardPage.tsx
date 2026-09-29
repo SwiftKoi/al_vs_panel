@@ -10,6 +10,7 @@ import Panel from "@/components/ui/Panel";
 import PageHeader from "@/components/layout/PageHeader";
 import ServerStatusBadge from "@/components/server/ServerStatusBadge";
 import { useServer } from "@/context/ServerContext";
+import { useSession } from "@/context/SessionContext";
 import { cn } from "@/lib/cn";
 import { SERVER_CONNECTIONS_INTERVAL_MS } from "@/lib/constants";
 import { clampPercent, formatBytes } from "@/lib/format";
@@ -64,6 +65,8 @@ function formatDuration(ms: number, locale: string) {
 export default function DashboardPage() {
   const { t, i18n } = useTranslation();
   const { selectedServer, loading, error } = useServer();
+  // Moderators see the same numbers, but tiles and attention items don't link to admin pages.
+  const { isAdmin } = useSession();
   const serverId = selectedServer?.id;
   const online = selectedServer?.status === "online";
 
@@ -71,7 +74,7 @@ export default function DashboardPage() {
   const connectionsLoad = useMemo(() => (serverId && online ? () => serverApi.connections(serverId) : null), [serverId, online]);
   const healthLoad = useMemo(() => (serverId ? () => serverHealthApi.get(serverId, 24) : null), [serverId]);
   const dropsLoad = useMemo(() => (serverId ? () => disconnectsApi.report(serverId, 1) : null), [serverId]);
-  const loginsLoad = useMemo(() => () => loginsApi.recent(1, 100), []);
+  const loginsLoad = useMemo(() => (isAdmin ? () => loginsApi.recent(1, 100) : null), [isAdmin]);
   const problemsLoad = useMemo(() => (serverId ? () => serverLogsApi.problemSummary(serverId) : null), [serverId]);
 
   const metrics = usePolling(metricsLoad, METRICS_REFRESH_MS);
@@ -104,7 +107,7 @@ export default function DashboardPage() {
   const failedLogins = (logins.data?.items ?? []).filter((l) => !l.succeeded && now - Date.parse(l.timestampUtc) <= DAY_MS).length;
   const dropCount = drops.data?.summary.drops ?? 0;
 
-  const attention: { key: string; text: string; to: string; level: Level }[] = [];
+  const attention: { key: string; text: string; to: string; level: Level; openToModerators?: boolean }[] = [];
   if (selectedServer.status === "offline") attention.push({ key: "offline", text: t("dashboard.attention.offline"), to: "/server", level: "bad" });
   if (m && m.diskPercent >= DISK_WARN_PERCENT) {
     attention.push({
@@ -130,7 +133,8 @@ export default function DashboardPage() {
       key: "logProblems",
       text: t("dashboard.attention.logProblems", { errors: newProblems.newErrors, warnings: newProblems.newWarnings }),
       to: "/server-logs?tab=problems",
-      level: newProblems.newErrors > 0 ? "bad" : "warn"
+      level: newProblems.newErrors > 0 ? "bad" : "warn",
+      openToModerators: true
     });
   }
   if (failedLogins > 0) attention.push({ key: "logins", text: t("dashboard.attention.failedLogins", { count: failedLogins }), to: "/settings", level: "warn" });
@@ -140,7 +144,7 @@ export default function DashboardPage() {
       <PageHeader title={t("dashboard.title")} description={t("dashboard.description")} />
 
       <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
-        <Tile icon={<Power size={16} />} title={t("dashboard.status.title")} to="/server">
+        <Tile icon={<Power size={16} />} title={t("dashboard.status.title")} to={isAdmin ? "/server" : undefined}>
           <div className="flex items-center gap-2">
             <ServerStatusBadge status={selectedServer.status} />
           </div>
@@ -156,7 +160,7 @@ export default function DashboardPage() {
           </div>
         </Tile>
 
-        <Tile icon={<Users size={16} />} title={t("dashboard.players.title")} to="/analytics?tab=live">
+        <Tile icon={<Users size={16} />} title={t("dashboard.players.title")} to={isAdmin ? "/analytics?tab=live" : undefined}>
           <div className="flex items-end justify-between gap-3">
             <div className="text-3xl font-bold text-slate-100 tabular-nums">{online ? (connections.data ? namedPlayers.length : "…") : 0}</div>
             {health.data && <PlayersSparkline health={health.data} />}
@@ -166,7 +170,7 @@ export default function DashboardPage() {
           )}
         </Tile>
 
-        <Tile icon={<Cpu size={16} />} title={t("dashboard.performance.title")} to="/analytics?tab=health">
+        <Tile icon={<Cpu size={16} />} title={t("dashboard.performance.title")} to={isAdmin ? "/analytics?tab=health" : undefined}>
           {m ? (
             <div className="space-y-2">
               <Meter label={t("dashboard.performance.cpu")} percent={m.cpuPercent} value={`${m.cpuPercent.toFixed(0)}%`} />
@@ -181,7 +185,7 @@ export default function DashboardPage() {
           )}
         </Tile>
 
-        <Tile icon={<HardDrive size={16} />} title={t("dashboard.disk.title")} to="/files">
+        <Tile icon={<HardDrive size={16} />} title={t("dashboard.disk.title")} to={isAdmin ? "/files" : undefined}>
           {m ? (
             <div className="space-y-2">
               <div className="text-3xl font-bold text-slate-100 tabular-nums">{Math.round(m.diskPercent)}%</div>
@@ -196,7 +200,7 @@ export default function DashboardPage() {
       </div>
 
       <Panel className="p-5">
-        <SectionTitle title={t("dashboard.online.title")} count={online ? players.length : undefined} link={{ to: "/analytics?tab=live", label: t("dashboard.online.viewAll") }} />
+        <SectionTitle title={t("dashboard.online.title")} count={online ? players.length : undefined} link={isAdmin ? { to: "/analytics?tab=live", label: t("dashboard.online.viewAll") } : undefined} />
         {!online ? (
           <p className="py-4 text-sm text-slate-400">{t("dashboard.online.offline")}</p>
         ) : !connections.data ? (
@@ -205,7 +209,7 @@ export default function DashboardPage() {
           <p className="py-4 text-sm text-slate-400">{t("dashboard.online.empty")}</p>
         ) : (
           <ul className="grid gap-2 sm:grid-cols-2 xl:grid-cols-3">
-            {players.map((c) => <PlayerRow key={`${c.remoteAddress}:${c.remotePort}`} connection={c} />)}
+            {players.map((c, i) => <PlayerRow key={c.remoteAddress ? `${c.remoteAddress}:${c.remotePort}` : `${c.playerName ?? ""}#${i}`} connection={c} />)}
           </ul>
         )}
       </Panel>
@@ -220,13 +224,20 @@ export default function DashboardPage() {
           <ul className="divide-y divide-red-950/20">
             {attention.map((item) => (
               <li key={item.key}>
-                <Link to={item.to} className="flex items-center gap-3 py-2.5 text-sm text-slate-200 hover:text-white group">
-                  <AlertTriangle size={16} className={cn("shrink-0", levelText[item.level])} />
-                  <span className="flex-1">{item.text}</span>
-                  <span className="flex items-center text-xs text-slate-500 group-hover:text-slate-300">
-                    {t("dashboard.attention.open")} <ChevronRight size={14} />
-                  </span>
-                </Link>
+                {isAdmin || item.openToModerators ? (
+                  <Link to={item.to} className="flex items-center gap-3 py-2.5 text-sm text-slate-200 hover:text-white group">
+                    <AlertTriangle size={16} className={cn("shrink-0", levelText[item.level])} />
+                    <span className="flex-1">{item.text}</span>
+                    <span className="flex items-center text-xs text-slate-500 group-hover:text-slate-300">
+                      {t("dashboard.attention.open")} <ChevronRight size={14} />
+                    </span>
+                  </Link>
+                ) : (
+                  <div className="flex items-center gap-3 py-2.5 text-sm text-slate-200">
+                    <AlertTriangle size={16} className={cn("shrink-0", levelText[item.level])} />
+                    <span className="flex-1">{item.text}</span>
+                  </div>
+                )}
               </li>
             ))}
           </ul>
@@ -236,19 +247,19 @@ export default function DashboardPage() {
   );
 }
 
-function Tile({ icon, title, to, children }: { icon: ReactNode; title: string; to: string; children: ReactNode }) {
-  return (
-    <Link to={to} className="block group">
-      <Panel className="h-full p-4 transition-colors group-hover:border-red-900/50">
-        <div className="mb-3 flex items-center gap-2 text-[11px] font-bold uppercase tracking-widest text-slate-400">
-          <span className="text-[#e04444]">{icon}</span>
-          <span className="flex-1">{title}</span>
-          <ChevronRight size={14} className="text-slate-600 group-hover:text-slate-300" />
-        </div>
-        {children}
-      </Panel>
-    </Link>
+/** A summary card; without `to` it is read-only (no link, chevron, or hover). */
+function Tile({ icon, title, to, children }: { icon: ReactNode; title: string; to?: string; children: ReactNode }) {
+  const panel = (
+    <Panel className={cn("h-full p-4", to && "transition-colors group-hover:border-red-900/50")}>
+      <div className="mb-3 flex items-center gap-2 text-[11px] font-bold uppercase tracking-widest text-slate-400">
+        <span className="text-[#e04444]">{icon}</span>
+        <span className="flex-1">{title}</span>
+        {to && <ChevronRight size={14} className="text-slate-600 group-hover:text-slate-300" />}
+      </div>
+      {children}
+    </Panel>
   );
+  return to ? <Link to={to} className="block group">{panel}</Link> : panel;
 }
 
 function SectionTitle({ title, count, link }: { title: string; count?: number; link?: { to: string; label: string } }) {

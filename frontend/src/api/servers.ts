@@ -85,6 +85,19 @@ function parseEventData(event: MessageEvent<string>): string {
   }
 }
 
+/** Pretty: coordinates box (x y z); absolute: debug screen (=x); relative: offset from the player (~x). */
+export type TeleportCoordinates = "pretty" | "absolute" | "relative";
+/** allowance: extra land claim allowance; maxAreas: extra land claim areas. Both on top of the role's. */
+export type LandClaimSetting = "allowance" | "maxAreas";
+
+// Moderator actions: the server builds each console command from these fields.
+function runAction(serverId: string, action: string, body: object) {
+  return apiRequest<{ serverId: string; accepted: boolean }>(serverPath(serverId, `actions/${action}`), {
+    method: "POST",
+    body: JSON.stringify(body)
+  });
+}
+
 export const serverApi = {
   list: () => apiRequest<ServerSummary[]>("/api/servers/"),
   status: (serverId: string) => apiRequest<ServerStatusResponse>(serverPath(serverId, "status")),
@@ -99,6 +112,18 @@ export const serverApi = {
       method: "POST",
       body: JSON.stringify({ command })
     }),
+  setGameMode: (serverId: string, playerName: string, mode: number) =>
+    runAction(serverId, "gamemode", { playerName, mode }),
+  teleport: (serverId: string, playerName: string, coordinates: TeleportCoordinates, x: number, y: number, z: number) =>
+    runAction(serverId, "teleport", { playerName, coordinates, x, y, z }),
+  warn: (serverId: string, playerName: string, reason: string) => runAction(serverId, "warn", { playerName, reason }),
+  kick: (serverId: string, playerName: string, reason: string) => runAction(serverId, "kick", { playerName, reason }),
+  ban: (serverId: string, playerName: string, reason: string) => runAction(serverId, "ban", { playerName, reason }),
+  unban: (serverId: string, playerName: string) => runAction(serverId, "unban", { playerName }),
+  hardban: (serverId: string, playerName: string) => runAction(serverId, "hardban", { playerName }),
+  setLandClaim: (serverId: string, playerName: string, setting: LandClaimSetting, value: number) =>
+    runAction(serverId, "landclaim", { playerName, setting, value }),
+  allowClassReselect: (serverId: string, playerName: string) => runAction(serverId, "allowcharselonce", { playerName }),
   metrics: (serverId: string) => apiRequest<ServerMetricsResponse>(serverPath(serverId, "metrics")),
   connections: (serverId: string) =>
     apiRequest<ServerConnectionsResponse>(serverPath(serverId, "connections")),

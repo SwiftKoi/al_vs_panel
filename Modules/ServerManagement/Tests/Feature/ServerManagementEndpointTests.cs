@@ -1,3 +1,5 @@
+using System.Security.Claims;
+using AlegacyWebPanel.Core.Authorization;
 using AlegacyWebPanel.Core.Errors;
 using AlegacyWebPanel.Modules.ServerManagement.Contracts;
 using AlegacyWebPanel.Modules.ServerManagement.Endpoints;
@@ -10,6 +12,21 @@ namespace AlegacyWebPanel.ServerManagement.FeatureTests;
 
 public sealed class ServerManagementEndpointTests
 {
+    [Theory]
+    [InlineData(PanelRoles.Admin, true)]
+    [InlineData(PanelRoles.Moderator, false)]
+    public async Task Connections_hide_player_addresses_from_non_admins(string role, bool addressVisible)
+    {
+        var user = new ClaimsPrincipal(new ClaimsIdentity([new Claim(ClaimTypes.Role, role)], "Test"));
+
+        var result = await ServerManagementEndpoints.ConnectionsAsync("main", new FakeService(), user, CancellationToken.None);
+
+        var connection = Assert.IsType<Ok<ServerConnectionsResponse>>(result).Value!.Connections.Single();
+        Assert.Equal("Alice", connection.PlayerName);
+        Assert.Equal(addressVisible ? "203.0.113.7" : string.Empty, connection.RemoteAddress);
+        Assert.Equal(addressVisible ? 50123 : 0, connection.RemotePort);
+    }
+
     [Fact]
     public async Task Lifecycle_forwards_route_action_and_returns_service_response()
     {
@@ -121,7 +138,10 @@ public sealed class ServerManagementEndpointTests
         public Task<ServerConnectionsResponse> GetConnectionsAsync(string serverId, CancellationToken cancellationToken)
         {
             ThrowIfRequested(serverId);
-            return Task.FromResult(new ServerConnectionsResponse(serverId, []));
+            return Task.FromResult(new ServerConnectionsResponse(serverId,
+            [
+                new ServerClientConnection("203.0.113.7", 50123, 42420, "Alice", 3, 40, 2, 35, 0, 0, 0, 0, 0, 10, 20, 100, 100)
+            ]));
         }
 
         public Task<IAsyncEnumerable<ServerLogEvent>> OpenLogStreamAsync(

@@ -1,7 +1,8 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { useSearchParams } from "react-router-dom";
 import { useTranslation } from "react-i18next";
-import { Bell, BellOff, ChevronDown, ChevronRight, Loader2, Search } from "lucide-react";
+import { AlertTriangle, Bell, BellOff, CheckCircle2, ChevronDown, ChevronRight, Loader2, Search } from "lucide-react";
+import Button from "@/components/ui/Button";
 import Panel from "@/components/ui/Panel";
 import { ApiError } from "@/api/client";
 import { serverLogsApi, type LogSignature, type LogSignatures } from "@/api/serverLogs";
@@ -10,12 +11,17 @@ import { cn } from "@/lib/cn";
 import RangePicker from "@/components/server-logs/RangePicker";
 import { levelClass, parseRange, resolveRange, writeRange, type TimeRange } from "@/components/server-logs/logStyles";
 
-function Trend({ values }: { values: number[] }) {
+const PAGE_SIZE = 30;
+
+/** Occurrences per slice of the selected range, oldest to newest; hover a slice for its count. */
+function Trend({ values, label }: { values: number[]; label: (count: number) => string }) {
   const max = Math.max(1, ...values);
   return (
-    <div className="flex h-6 w-24 items-end gap-px" aria-hidden>
+    <div className="flex h-6 w-24 items-end gap-px">
       {values.map((value, index) => (
-        <div key={index} className="flex-1 rounded-t-[1px] bg-[#b8282e]/60" style={{ height: value ? `${Math.max(8, (value / max) * 100)}%` : "0" }} />
+        <div key={index} className="flex h-full flex-1 items-end" title={label(value)}>
+          <div className="w-full rounded-t-[1px] bg-[#b8282e]/60" style={{ height: value ? `${Math.max(8, (value / max) * 100)}%` : "0" }} />
+        </div>
       ))}
     </div>
   );
@@ -33,6 +39,9 @@ export default function ProblemsTab({ serverId }: { serverId: string }) {
   const [showMuted, setShowMuted] = useState(false);
   const [expanded, setExpanded] = useState<number | null>(null);
   const [levelFilter, setLevelFilter] = useState<"all" | "error" | "warning">("all");
+  const [shown, setShown] = useState(PAGE_SIZE);
+
+  useEffect(() => setShown(PAGE_SIZE), [range, levelFilter, showMuted]);
 
   const load = useCallback(() => {
     const { from, to } = resolveRange(range);
@@ -77,9 +86,11 @@ export default function ProblemsTab({ serverId }: { serverId: string }) {
 
   return (
     <div className="space-y-4">
-      <Panel className="flex flex-wrap items-center gap-3 p-4">
+      <Panel className="flex flex-wrap items-center gap-x-4 gap-y-3 p-4">
         <RangePicker value={range} onChange={setRange} presets={["24h", "7d", "30d", "all"]} />
-        <div className="flex gap-1">
+        <div className="hidden h-6 w-px bg-slate-700/70 sm:block" aria-hidden />
+        <div className="flex items-center gap-1">
+          <span className="mr-1 text-[11px] uppercase tracking-wider text-slate-400">{t("serverLogs.problems.severity")}</span>
           {(["all", "error", "warning"] as const).map((level) => (
             <button
               key={level}
@@ -100,7 +111,12 @@ export default function ProblemsTab({ serverId }: { serverId: string }) {
       </Panel>
 
       {data && (
-        <p className="px-1 text-xs text-slate-300">
+        <p className={cn(
+          "flex items-center gap-2 rounded-md border px-3 py-2 text-xs",
+          !data.lastServerStart ? "border-slate-700/70 text-slate-300"
+            : newCount > 0 ? "border-rose-500/40 bg-rose-500/10 text-rose-200" : "border-emerald-500/30 bg-emerald-500/10 text-emerald-200"
+        )}>
+          {data.lastServerStart && (newCount > 0 ? <AlertTriangle size={14} className="shrink-0" /> : <CheckCircle2 size={14} className="shrink-0" />)}
           {data.lastServerStart
             ? t("serverLogs.problems.summary", { count: newCount, start: dateFormat.format(new Date(data.lastServerStart)) })
             : t("serverLogs.problems.noStart")}
@@ -116,7 +132,7 @@ export default function ProblemsTab({ serverId }: { serverId: string }) {
       ) : (
         <Panel className="overflow-hidden">
           <ul className="divide-y divide-slate-800/70">
-            {visible.map((signature) => (
+            {visible.slice(0, shown).map((signature) => (
               <li key={signature.id} className={cn("px-4 py-2.5", signature.muted && "opacity-60")}>
                 <div className="flex items-start gap-3">
                   <button
@@ -146,7 +162,7 @@ export default function ProblemsTab({ serverId }: { serverId: string }) {
                   </div>
                   <div className="hidden shrink-0 flex-col items-end gap-1 sm:flex">
                     <span className="text-sm font-semibold tabular-nums text-slate-100">{number.format(signature.count)}×</span>
-                    <Trend values={signature.trend} />
+                    <Trend values={signature.trend} label={(count) => t("serverLogs.problems.trendPoint", { count })} />
                   </div>
                   <div className="flex shrink-0 flex-col gap-1">
                     <button
@@ -172,6 +188,12 @@ export default function ProblemsTab({ serverId }: { serverId: string }) {
               </li>
             ))}
           </ul>
+          {visible.length > shown && (
+            <div className="flex items-center justify-center gap-3 border-t border-slate-800/70 p-3 text-xs text-slate-400">
+              {t("serverLogs.problems.showing", { shown, total: visible.length })}
+              <Button onClick={() => setShown((value) => value + PAGE_SIZE)}>{t("serverLogs.problems.showMore")}</Button>
+            </div>
+          )}
         </Panel>
       )}
     </div>

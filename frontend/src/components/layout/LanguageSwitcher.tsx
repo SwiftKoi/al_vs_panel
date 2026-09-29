@@ -34,7 +34,8 @@ export default function LanguageSwitcher() {
         className="flex h-8 items-center gap-1.5 rounded-md px-2 text-xs text-slate-300 transition hover:bg-red-950/15 hover:text-white focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-red-500/50 cursor-pointer"
       >
         <Languages size={15} className="text-[#e04444]" aria-hidden="true" />
-        <span>{currentLanguage === "ru" ? t("common.russian") : t("common.english")}</span>
+        <span className="hidden sm:inline">{currentLanguage === "ru" ? t("common.russian") : t("common.english")}</span>
+        <span className="uppercase sm:hidden">{currentLanguage}</span>
         <ChevronDown size={14} className={`text-slate-500 transition-transform ${open ? "rotate-180" : ""}`} aria-hidden="true" />
       </button>
       {open ? (
