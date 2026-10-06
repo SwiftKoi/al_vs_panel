@@ -10,6 +10,12 @@ public interface IModManagerService
     /// <summary>One installed mod with its full ModDB version history and sanitised changelogs.</summary>
     Task<ModDetailDto> GetDetailAsync(string serverId, string modId, CancellationToken cancellationToken);
 
+    /// <summary>
+    /// The mods the public website may list: published on ModDB and client-side or both-sides.
+    /// Server-side mods, private mods (not on ModDB) and unreadable files are left out.
+    /// </summary>
+    Task<PublicModCatalogDto> GetPublicCatalogAsync(string serverId, CancellationToken cancellationToken);
+
     Task SetPinnedAsync(string serverId, string modId, bool pinned, CancellationToken cancellationToken);
 
     /// <summary>

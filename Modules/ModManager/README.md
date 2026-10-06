@@ -77,6 +77,21 @@ HTTP request -> ModManager endpoint -> IModManagerService
 
 Mutating routes require the CSRF token.
 
+## Public catalog
+
+`IModManagerService.GetPublicCatalogAsync` projects the same snapshot onto what the public website may
+list (`PublicModCatalogBuilder`). The rules live in one place:
+
+- only mods published on ModDB (`NotOnModDb`, `Unidentified` and `CheckFailed` are left out)
+- only client-side or both-sides mods: `modinfo.json` `universal` and ModDB `both` are `both`, a missing side is `both`
+  (the game's default), `server` and unrecognised values are never listed
+- one entry per mod id; the ModDB page URL uses the numeric `/show/mod/{assetId}` form
+- `DownloadUrl` / `DownloadFileName` come from the ModDB release whose version equals the installed
+  version, and only on a `TrustedDownloadHosts` host over https; otherwise they are null
+- `Complete` is false if any ModDB lookup failed, so a consumer can tell "removed" from "could not be checked"
+
+It is exposed to machine clients by [AutomationApi](../AutomationApi/) (`GET /api/v1/servers/{serverId}/mods`).
+
 ## Configuration
 
 ```json

@@ -42,6 +42,19 @@ public sealed class ModManagerService(
             snapshot.Mods.Select(mod => mod.Dto).ToArray());
     }
 
+    public async Task<PublicModCatalogDto> GetPublicCatalogAsync(string serverId, CancellationToken cancellationToken)
+    {
+        var snapshot = await LoadAsync(serverId, refresh: false, cancellationToken);
+
+        return PublicModCatalogBuilder.Build(
+            serverId,
+            snapshot.GameVersion?.Text,
+            timeProvider.GetUtcNow(),
+            _options.ModDbBaseUrl,
+            _options.TrustedDownloadHosts,
+            snapshot.Mods.Select(mod => (mod.Dto, mod.ModDb)));
+    }
+
     public async Task<ModDetailDto> GetDetailAsync(string serverId, string modId, CancellationToken cancellationToken)
     {
         var snapshot = await LoadAsync(serverId, refresh: false, cancellationToken);

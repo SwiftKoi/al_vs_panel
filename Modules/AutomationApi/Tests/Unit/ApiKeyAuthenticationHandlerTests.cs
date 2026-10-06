@@ -52,6 +52,27 @@ public sealed class ApiKeyAuthenticationHandlerTests
         Assert.False(result.Succeeded);
     }
 
+    [Fact]
+    public async Task Mods_handler_issues_a_principal_under_the_mods_scheme()
+    {
+        var handler = new ModsApiKeyAuthenticationHandler(
+            new TestOptionsMonitor<ApiKeyAuthenticationOptions>(new ApiKeyAuthenticationOptions()),
+            NullLoggerFactory.Instance,
+            UrlEncoder.Default,
+            new FakeValidator { IsValid = true });
+        var context = new DefaultHttpContext();
+        context.Request.Headers[ApiKeyAuthenticationDefaults.HeaderName] = "secret-value";
+        await handler.InitializeAsync(
+            new AuthenticationScheme(ApiKeyAuthenticationDefaults.ModsScheme, null, typeof(ModsApiKeyAuthenticationHandler)),
+            context);
+
+        var result = await handler.AuthenticateAsync();
+
+        Assert.True(result.Succeeded);
+        Assert.Equal(ApiKeyAuthenticationDefaults.ModsScheme, result.Ticket!.AuthenticationScheme);
+        Assert.Equal("mods-api", result.Principal!.Identity!.Name);
+    }
+
     private static AuthenticationScheme Scheme =>
         new(ApiKeyAuthenticationDefaults.Scheme, null, typeof(ApiKeyAuthenticationHandler));
 

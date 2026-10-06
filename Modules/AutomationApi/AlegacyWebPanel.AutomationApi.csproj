@@ -21,6 +21,7 @@
   <ItemGroup>
     <ProjectReference Include="../../Core/AlegacyWebPanel.Core.csproj" />
     <ProjectReference Include="../FileManager/AlegacyWebPanel.FileManager.csproj" />
+    <ProjectReference Include="../ModManager/AlegacyWebPanel.ModManager.csproj" />
     <ProjectReference Include="../ServerManagement/AlegacyWebPanel.ServerManagement.csproj" />
   </ItemGroup>
 </Project>

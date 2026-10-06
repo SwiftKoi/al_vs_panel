@@ -3,6 +3,8 @@ using AlegacyWebPanel.Core.Errors;
 using AlegacyWebPanel.Modules.FileManager.Configuration;
 using AlegacyWebPanel.Modules.FileManager.Exceptions;
 using AlegacyWebPanel.Modules.FileManager.Services;
+using AlegacyWebPanel.Modules.ModManager.Exceptions;
+using AlegacyWebPanel.Modules.ModManager.Services;
 using AlegacyWebPanel.Modules.RemoteOperations.Exceptions;
 using AlegacyWebPanel.Modules.ServerManagement.Contracts;
 using AlegacyWebPanel.Modules.ServerManagement.Exceptions;
@@ -19,6 +21,12 @@ public static class AutomationApiEndpoints
         IServerManagementService service,
         CancellationToken cancellationToken) =>
         TranslateAsync(async () => Results.Ok(await service.ListAsync(cancellationToken)));
+
+    public static Task<IResult> PublicModsAsync(
+        string serverId,
+        IModManagerService service,
+        CancellationToken cancellationToken) =>
+        TranslateAsync(async () => Results.Ok(await service.GetPublicCatalogAsync(serverId, cancellationToken)));
 
     public static Task<IResult> ServerStatusAsync(
         string serverId,
@@ -191,6 +199,18 @@ public static class AutomationApiEndpoints
         catch (RemoteOperationFailedException exception)
         {
             throw new HttpException(StatusCodes.Status502BadGateway, "Remote operation failed", exception.Message);
+        }
+        catch (ModServerNotFoundException exception)
+        {
+            throw new HttpException(StatusCodes.Status404NotFound, "Server not found", exception.Message);
+        }
+        catch (ModDbUnavailableException exception)
+        {
+            throw new HttpException(StatusCodes.Status502BadGateway, "ModDB unavailable", exception.Message);
+        }
+        catch (ModTargetException exception)
+        {
+            throw new HttpException(StatusCodes.Status502BadGateway, "Mod folder unavailable", exception.Message);
         }
         catch (ServerUnavailableException exception)
         {

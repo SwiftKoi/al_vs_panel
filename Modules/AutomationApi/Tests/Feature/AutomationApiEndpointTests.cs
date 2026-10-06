@@ -7,6 +7,9 @@ using AlegacyWebPanel.Modules.FileManager.Configuration;
 using AlegacyWebPanel.Modules.FileManager.Contracts;
 using AlegacyWebPanel.Modules.FileManager.Exceptions;
 using AlegacyWebPanel.Modules.FileManager.Services;
+using AlegacyWebPanel.Modules.ModManager.Contracts;
+using AlegacyWebPanel.Modules.ModManager.Exceptions;
+using AlegacyWebPanel.Modules.ModManager.Services;
 using AlegacyWebPanel.Modules.RemoteOperations.Exceptions;
 using AlegacyWebPanel.Modules.ServerManagement.Contracts;
 using AlegacyWebPanel.Modules.ServerManagement.Exceptions;
@@ -29,6 +32,31 @@ public sealed class AutomationApiEndpointTests
 
         var response = Assert.IsType<Ok<IReadOnlyList<ServerSummary>>>(result);
         Assert.Equal("main", Assert.Single(response.Value!).Id);
+    }
+
+    [Fact]
+    public async Task PublicMods_returns_the_catalog_for_the_requested_server()
+    {
+        var service = new FakeModService();
+
+        var result = await AutomationApiEndpoints.PublicModsAsync("main", service, CancellationToken.None);
+
+        var response = Assert.IsType<Ok<PublicModCatalogDto>>(result);
+        Assert.Equal("main", service.ServerId);
+        Assert.Equal("main", response.Value!.ServerId);
+        Assert.True(response.Value.Complete);
+    }
+
+    [Theory]
+    [InlineData(ModFailure.ServerNotFound, StatusCodes.Status404NotFound)]
+    [InlineData(ModFailure.ModDbUnavailable, StatusCodes.Status502BadGateway)]
+    [InlineData(ModFailure.TargetFailed, StatusCodes.Status502BadGateway)]
+    public async Task PublicMods_translates_domain_failures(ModFailure failure, int expectedStatus)
+    {
+        var exception = await Assert.ThrowsAsync<HttpException>(() =>
+            AutomationApiEndpoints.PublicModsAsync("main", new FakeModService { Failure = failure }, CancellationToken.None));
+
+        Assert.Equal(expectedStatus, exception.StatusCode);
     }
 
     [Fact]
@@ -242,6 +270,50 @@ public sealed class AutomationApiEndpointTests
         Conflict,
         OperationFailed,
         Unavailable
+    }
+
+    public enum ModFailure
+    {
+        None,
+        ServerNotFound,
+        ModDbUnavailable,
+        TargetFailed
+    }
+
+    private sealed class FakeModService : IModManagerService
+    {
+        public ModFailure Failure { get; init; }
+
+        public string? ServerId { get; private set; }
+
+        public Task<PublicModCatalogDto> GetPublicCatalogAsync(string serverId, CancellationToken cancellationToken)
+        {
+            ServerId = serverId;
+            return Failure switch
+            {
+                ModFailure.ServerNotFound => throw new ModServerNotFoundException(serverId),
+                ModFailure.ModDbUnavailable => throw new ModDbUnavailableException("down"),
+                ModFailure.TargetFailed => throw new ModTargetException("down"),
+                _ => Task.FromResult(new PublicModCatalogDto(serverId, "1.22.7", DateTimeOffset.UnixEpoch, true, []))
+            };
+        }
+
+        public Task<ModOverviewDto> GetOverviewAsync(string serverId, bool refresh, CancellationToken cancellationToken) =>
+            throw new NotSupportedException();
+
+        public Task<ModDetailDto> GetDetailAsync(string serverId, string modId, CancellationToken cancellationToken) =>
+            throw new NotSupportedException();
+
+        public Task SetPinnedAsync(string serverId, string modId, bool pinned, CancellationToken cancellationToken) =>
+            throw new NotSupportedException();
+
+        public Task<ModUpdateJobDto> StartUpdateAsync(string serverId, ModUpdateRequest request, CancellationToken cancellationToken) =>
+            throw new NotSupportedException();
+
+        public ModUpdateJobDto? GetCurrentJob(string serverId) => throw new NotSupportedException();
+
+        public Task<ModBackupDto> RollbackAsync(string serverId, CancellationToken cancellationToken) =>
+            throw new NotSupportedException();
     }
 
     private sealed class FakeServerService : IServerManagementService

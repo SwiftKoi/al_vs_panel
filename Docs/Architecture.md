@@ -80,14 +80,19 @@ Owns remote file management capabilities including directory listings, file down
 
 ### AutomationApi
 
-Owns the secret-authenticated automation API surface under `/api/v1`, its API-key authentication scheme, and its configuration. It calls the public FileManager and ServerManagement service interfaces and adds no business rules of its own: file and lifecycle semantics, validation, and domain exceptions stay with the owning modules.
+Owns the secret-authenticated automation API surface under `/api/v1`, its API-key authentication schemes, and its configuration. It calls the public FileManager, ServerManagement and ModManager service interfaces and adds no business rules of its own: file and lifecycle semantics, validation, and domain exceptions stay with the owning modules.
 
 The request flow is:
 
 ```text
 HTTP request -> AutomationApi endpoint -> API-key policy (X-Api-Key)
              -> IFileManagerService / IServerManagementService
+
+HTTP request -> AutomationApi endpoint -> mods API-key policy (X-Api-Key, separate key)
+             -> IModManagerService.GetPublicCatalogAsync
 ```
+
+The second flow is the read-only mods catalog (`GET /api/v1/servers/{serverId}/mods`) for the public website. It has its own key and policy so the website can read the catalog without being able to upload files or control the game server. ModManager decides what is public (`PublicModCatalogBuilder`: ModDB-published mods that are client-side or both-sides); AutomationApi only authenticates and translates exceptions.
 
 The API is disabled unless `AutomationApi:Enabled` is set, and it is separate from the browser cookie/CSRF routes. The presented key is validated against a mounted secret file with a length-independent, timing-safe comparison and is never logged.
 

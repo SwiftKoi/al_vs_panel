@@ -10,9 +10,18 @@ namespace AlegacyWebPanel.Modules.AutomationApi.Services;
 public sealed class ApiKeyValidator(
     ISecretReader secretReader,
     IOptions<AutomationApiOptions> options,
-    ILogger<ApiKeyValidator> logger) : IApiKeyValidator
+    ILogger<ApiKeyValidator> logger,
+    ApiKeyScope scope) : IApiKeyValidator
 {
     private int _unavailableLogged;
+
+    public ApiKeyValidator(
+        ISecretReader secretReader,
+        IOptions<AutomationApiOptions> options,
+        ILogger<ApiKeyValidator> logger)
+        : this(secretReader, options, logger, ApiKeyScope.Automation)
+    {
+    }
 
     public bool IsValid(string? presentedKey)
     {
@@ -27,18 +36,24 @@ public sealed class ApiKeyValidator(
             return false;
         }
 
+        var keyFile = scope == ApiKeyScope.Mods ? settings.ModsKeyFile : settings.KeyFile;
+        if (string.IsNullOrWhiteSpace(keyFile))
+        {
+            return false;
+        }
+
         string expected;
         try
         {
             // Read per request so replacing the mounted secret rotates the key
             // without a restart.
-            expected = secretReader.ReadRequired(settings.KeyFile, "automation API key").Value;
+            expected = secretReader.ReadRequired(keyFile, scope == ApiKeyScope.Mods ? "mods API key" : "automation API key").Value;
         }
         catch (ConfigurationException exception)
         {
             if (Interlocked.Exchange(ref _unavailableLogged, 1) == 0)
             {
-                logger.LogWarning(exception, "The automation API key is unavailable. API requests are rejected.");
+                logger.LogWarning(exception, "The {Scope} API key is unavailable. API requests are rejected.", scope);
             }
 
             return false;

@@ -123,3 +123,35 @@ public sealed record ModUpdateJobDto(
     DateTimeOffset? FinishedUtc,
     string? Error,
     IReadOnlyList<ModUpdateJobItemDto> Items);
+
+/// <summary>
+/// One mod as the public website sees it: ModDB-published and visible to players (client or both sides).
+/// </summary>
+public sealed record PublicModDto(
+    string ModId,
+    string Name,
+    string? Version,
+    /// <summary><c>client</c> or <c>both</c>. Server-side mods are never exposed.</summary>
+    string Side,
+    string? Description,
+    IReadOnlyList<string> Authors,
+    int ModDbAssetId,
+    string ModDbUrl,
+    string? LogoUrl,
+    /// <summary>
+    /// ModDB's file for exactly the installed version (trusted ModDB host, https), so a download of
+    /// "all mods" matches what the server runs. Null when ModDB has no such release or file.
+    /// </summary>
+    string? DownloadUrl,
+    string? DownloadFileName);
+
+public sealed record PublicModCatalogDto(
+    string ServerId,
+    string? GameVersion,
+    DateTimeOffset GeneratedUtc,
+    /// <summary>
+    /// False when at least one ModDB lookup failed. A mod can be missing from an incomplete catalog
+    /// only because it could not be checked, so consumers must not treat absence as removal.
+    /// </summary>
+    bool Complete,
+    IReadOnlyList<PublicModDto> Mods);

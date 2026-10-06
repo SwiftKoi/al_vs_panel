@@ -107,8 +107,18 @@ def setup_secrets():
     else:
         print(f"[~] Automation API key already exists in {api_key_path}")
 
-    # 5. Correct permissions of secret files
-    for file_name in ["admin-password", "ssh-private-key", "api-key"]:
+    # 5. Generate the read-only mods catalog key if not present (a separate key, so the public
+    # website can read the catalog without being able to upload files or control the server)
+    mods_key_path = os.path.join(secrets_dir, "mods-api-key")
+    if not os.path.exists(mods_key_path):
+        with open(mods_key_path, "w") as f:
+            f.write(secrets.token_urlsafe(32) + "\n")
+        print(f"[+] Generated new mods catalog API key in {mods_key_path}")
+    else:
+        print(f"[~] Mods catalog API key already exists in {mods_key_path}")
+
+    # 6. Correct permissions of secret files
+    for file_name in ["admin-password", "ssh-private-key", "api-key", "mods-api-key"]:
         file_path = os.path.join(secrets_dir, file_name)
         if os.path.exists(file_path):
             os.chmod(file_path, 0o640)

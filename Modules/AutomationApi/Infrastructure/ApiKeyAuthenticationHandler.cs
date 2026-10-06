@@ -6,13 +6,17 @@ using Microsoft.Extensions.Options;
 
 namespace AlegacyWebPanel.Modules.AutomationApi.Infrastructure;
 
-public sealed class ApiKeyAuthenticationHandler(
+public class ApiKeyAuthenticationHandler(
     IOptionsMonitor<ApiKeyAuthenticationOptions> options,
     ILoggerFactory loggerFactory,
     UrlEncoder encoder,
     IApiKeyValidator validator)
     : AuthenticationHandler<ApiKeyAuthenticationOptions>(options, loggerFactory, encoder)
 {
+    protected virtual string SchemeName => ApiKeyAuthenticationDefaults.Scheme;
+
+    protected virtual string IdentityName => "automation-api";
+
     protected override Task<AuthenticateResult> HandleAuthenticateAsync()
     {
         if (!Request.Headers.TryGetValue(ApiKeyAuthenticationDefaults.HeaderName, out var headerValues))
@@ -28,11 +32,11 @@ public sealed class ApiKeyAuthenticationHandler(
         }
 
         var identity = new ClaimsIdentity(
-            [new Claim(ClaimTypes.Name, "automation-api")],
-            ApiKeyAuthenticationDefaults.Scheme);
+            [new Claim(ClaimTypes.Name, IdentityName)],
+            SchemeName);
         var ticket = new AuthenticationTicket(
             new ClaimsPrincipal(identity),
-            ApiKeyAuthenticationDefaults.Scheme);
+            SchemeName);
 
         return Task.FromResult(AuthenticateResult.Success(ticket));
     }

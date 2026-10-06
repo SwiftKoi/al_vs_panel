@@ -51,6 +51,41 @@ public sealed class ApiKeyValidatorTests
         Assert.False(validator.IsValid(ConfiguredKey));
     }
 
+    [Fact]
+    public void Mods_scope_accepts_the_mods_key_and_ignores_the_automation_key()
+    {
+        var reader = new PathSecretReader(new Dictionary<string, string>
+        {
+            ["/run/secrets/api_key"] = "automation-key",
+            ["/run/secrets/mods_api_key"] = "mods-key"
+        });
+        var options = Options.Create(new AutomationApiOptions
+        {
+            Enabled = true,
+            KeyFile = "/run/secrets/api_key",
+            ModsKeyFile = "/run/secrets/mods_api_key"
+        });
+        var automation = new ApiKeyValidator(reader, options, NullLogger<ApiKeyValidator>.Instance, ApiKeyScope.Automation);
+        var mods = new ApiKeyValidator(reader, options, NullLogger<ApiKeyValidator>.Instance, ApiKeyScope.Mods);
+
+        Assert.True(mods.IsValid("mods-key"));
+        Assert.False(mods.IsValid("automation-key"));
+        Assert.True(automation.IsValid("automation-key"));
+        Assert.False(automation.IsValid("mods-key"));
+    }
+
+    [Fact]
+    public void Mods_scope_rejects_everything_when_no_mods_key_file_is_configured()
+    {
+        var validator = new ApiKeyValidator(
+            new FakeSecretReader(ConfiguredKey),
+            Options.Create(new AutomationApiOptions { Enabled = true, KeyFile = "/run/secrets/api_key", ModsKeyFile = "" }),
+            NullLogger<ApiKeyValidator>.Instance,
+            ApiKeyScope.Mods);
+
+        Assert.False(validator.IsValid(ConfiguredKey));
+    }
+
     private static ApiKeyValidator CreateValidator(string? secret, bool enabled = true) =>
         new(
             new FakeSecretReader(secret),
@@ -63,5 +98,13 @@ public sealed class ApiKeyValidatorTests
             value is null
                 ? throw new ConfigurationException($"Required secret '{name}' was not found at '{path}'.")
                 : new SecretValue(value);
+    }
+
+    private sealed class PathSecretReader(IReadOnlyDictionary<string, string> secrets) : ISecretReader
+    {
+        public SecretValue ReadRequired(string path, string name) =>
+            secrets.TryGetValue(path, out var value)
+                ? new SecretValue(value)
+                : throw new ConfigurationException($"Required secret '{name}' was not found at '{path}'.");
     }
 }

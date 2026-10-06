@@ -2,19 +2,20 @@
 
 This directory contains sensitive files that Docker mounts into the application container at runtime. It is intentionally ignored by Git. Never commit this directory's contents, paste them into an issue, or put them in `appsettings.json`, `.env`, or frontend code.
 
-The Compose deployment expects three files:
+The Compose deployment expects four files:
 
 | File | Purpose |
 | --- | --- |
 | `admin-password` | Password for the initial local `admin` account. The application reads it during startup when it seeds the authentication database. |
 | `ssh-private-key` | Private SSH key used by the backend to authenticate to the configured remote server. It is not a Docker encryption key and it is not used to authenticate browser users. |
 | `api-key` | Pre-shared key for the secret-authenticated automation API under `/api/v1`. Send it as the `X-Api-Key` header. |
+| `mods-api-key` | A separate pre-shared key that only opens the read-only mods catalog (`GET /api/v1/servers/{serverId}/mods`). Give this one, never `api-key`, to the public website. `python3 manage.py setup` generates it. |
 
 The application runs as the non-root container user with numeric GID `1654`. With regular local Docker Compose file-backed secrets, the host file permissions are preserved when the files are mounted. The secret files therefore need to be readable by group `1654`, but not by everyone:
 
 ```sh
-sudo chgrp 1654 secrets/admin-password secrets/ssh-private-key secrets/api-key
-chmod 640 secrets/admin-password secrets/ssh-private-key secrets/api-key
+sudo chgrp 1654 secrets/admin-password secrets/ssh-private-key secrets/api-key secrets/mods-api-key
+chmod 640 secrets/admin-password secrets/ssh-private-key secrets/api-key secrets/mods-api-key
 ```
 
 The `sudo` is needed because the host group ID may not exist as a named group on the deployment machine. Do not use `chmod 644`; that would expose the secrets to every local user.

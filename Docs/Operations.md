@@ -57,7 +57,7 @@ Admins create accounts in Settings → Users and pick a role: **Admin** (everyth
 
 Machine clients call the secret-authenticated API under `/api/v1` for server discovery, status, file listing, download, upload, and start/stop/restart. The production gateway proxies `/api/*` to the application, so these routes are reachable on the public domain and protected only by the `X-Api-Key` secret. Send the key over HTTPS only and keep it out of shell history and logs.
 
-`python3 manage.py setup` generates `secrets/api-key`, and the Compose files mount it as `/run/secrets/api_key` with `AutomationApi__Enabled=true`. Rotate the key by replacing the contents of the mounted secret file: the application reads the file on every request, so with Compose file-backed secrets the change is picked up immediately. If the secret is delivered another way, restart the container after replacing it. The endpoint reference and curl examples live in the [AutomationApi module guide](../Modules/AutomationApi/README.md).
+`python3 manage.py setup` generates `secrets/api-key`, and the Compose files mount it as `/run/secrets/api_key` with `AutomationApi__Enabled=true`. Rotate the key by replacing the contents of the mounted secret file: the application reads the file on every request, so with Compose file-backed secrets the change is picked up immediately. If the secret is delivered another way, restart the container after replacing it. The public website reads the mods catalog (`GET /api/v1/servers/{serverId}/mods`) with a separate key: `python3 manage.py setup` also generates `secrets/mods-api-key`, mounted as `/run/secrets/mods_api_key` with `AutomationApi__ModsKeyFile`. Rotate it the same way. The endpoint reference and curl examples live in the [AutomationApi module guide](../Modules/AutomationApi/README.md).
 
 ## Application logs
 
@@ -102,6 +102,8 @@ When investigating a failure, identify the module from the request or log contex
 - **Protected API calls return `401`:** the cookie may have expired or the account may have been invalidated. Log in again; inspect the session and refresh endpoints before changing cookie settings.
 - **Automation API returns `404`:** confirm `AutomationApi:Enabled` is true and the secret file existed at startup.
 - **Automation API returns `401`:** confirm the `X-Api-Key` value matches the mounted `api_key` secret exactly.
+- **Mods catalog returns `404`:** confirm `AutomationApi:ModsKeyFile` is set and the file existed at startup, or that the `serverId` is configured under `ModManager:Servers`.
+- **Mods catalog returns `401`:** use the `mods_api_key` secret, not the automation key.
 - **Remote operation failure:** verify the remote host, port, username, key, host fingerprint, and command allowlist. Check the remote account's permissions and connectivity separately.
 - **Missing or empty application logs:** confirm the `app_data` volume is writable and mounted, that `LogStore` is configured, and that the persisted minimum level is not above the events being examined. The log viewer shows persisted events; the console may show a superset.
 - **Log entries dropped:** the bounded capture buffer reported drops because writes outran the background writer. Increase `LogStore:BufferCapacity` or lower `LogStore:MinimumLevel`.

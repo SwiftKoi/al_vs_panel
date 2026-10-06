@@ -37,6 +37,14 @@ public static class AutomationApiRoutes
                 AutomationApiEndpoints.LifecycleAsync(serverId, ServerLifecycleAction.Restart, service, token))
             .Audited(AuditCategories.Server, "restart");
 
+        // Read-only catalog for the public website, behind its own key (see AutomationApiOptions.ModsKeyFile).
+        if (!string.IsNullOrWhiteSpace(options.ModsKeyFile))
+        {
+            endpoints.MapGroup("/api/v1")
+                .RequireAuthorization(ApiKeyAuthenticationDefaults.ModsPolicy)
+                .MapGet("/servers/{serverId}/mods", AutomationApiEndpoints.PublicModsAsync);
+        }
+
         return endpoints;
     }
 }
