@@ -100,6 +100,7 @@ export const en = {
     analytics: "Analytics",
     mods: "Mods",
     logs: "Logs",
+    audit: "Audit trail",
     quickActions: "Quick actions",
     restartServer: "Restart",
     openModsFolder: "Mods",
@@ -1043,6 +1044,63 @@ export const en = {
     errors: {
       title: "Errors",
       empty: "No errors recorded."
+    }
+  },
+  audit: {
+    title: "Audit trail",
+    description: "Who changed what: server control, files, mods, users and moderation.",
+    time: "Time",
+    actor: "Who",
+    action: "Action",
+    category: "Area",
+    server: "Server",
+    target: "Target",
+    outcome: "Outcome",
+    succeeded: "Succeeded",
+    failed: "Failed",
+    any: "Any",
+    from: "From",
+    to: "To",
+    search: "Search target, details, error…",
+    refresh: "Refresh",
+    loading: "Loading audit trail…",
+    empty: "No audit entries match the current filters.",
+    loadFailed: "Unable to load the audit trail.",
+    previous: "Previous",
+    next: "Next",
+    pageOf: "Showing {{from}}–{{to}} of {{total}}",
+    ip: "IP address",
+    details: "Details",
+    noDetails: "No additional details.",
+    api: "API",
+    categories: {
+      server: "Server",
+      moderation: "Moderation",
+      files: "Files",
+      mods: "Mods",
+      users: "Users",
+      account: "Account",
+      logs: "Logs",
+      remote: "Remote operations"
+    },
+    actions: {
+      server: { start: "Started the server", stop: "Stopped the server", restart: "Restarted the server", command: "Ran a console command" },
+      moderation: {
+        gamemode: "Changed game mode", teleport: "Teleported a player", warn: "Warned a player", kick: "Kicked a player",
+        ban: "Banned a player", hardban: "Hard-banned a player", unban: "Unbanned a player",
+        landclaim: "Changed land claim limits", allowcharselonce: "Allowed class re-selection"
+      },
+      files: {
+        save: "Edited a file", upload: "Uploaded a file", mkdir: "Created a folder", rename: "Renamed an item",
+        move: "Moved an item", delete: "Deleted an item", "download-archive": "Downloaded items as an archive",
+        "trash-restore": "Restored from trash", "trash-purge": "Purged from trash", "trash-empty": "Emptied the trash",
+        compress: "Compressed items", extract: "Extracted an archive", "cancel-operation": "Cancelled a file job"
+      },
+      mods: { update: "Updated mods", rollback: "Rolled back mods", pin: "Changed a mod pin" },
+      users: { create: "Created a user", delete: "Deleted a user", "change-role": "Changed a user's role" },
+      account: { "change-password": "Changed own password", "2fa-enable": "Enabled two-factor", "2fa-disable": "Disabled two-factor" },
+      logs: { clear: "Cleared the application log", "mute-signature": "Muted or unmuted a log problem" },
+      remote: { execute: "Ran a remote operation" }
     }
   }
 } as const;

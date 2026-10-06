@@ -23,6 +23,8 @@ using AlegacyWebPanel.Modules.ModManager.Endpoints;
 using AlegacyWebPanel.Modules.ModManager.Infrastructure;
 using AlegacyWebPanel.Modules.ServerLogs.Endpoints;
 using AlegacyWebPanel.Modules.ServerLogs.Infrastructure;
+using AlegacyWebPanel.Modules.Audit.Endpoints;
+using AlegacyWebPanel.Modules.Audit.Infrastructure;
 using Microsoft.AspNetCore.DataProtection;
 using Microsoft.AspNetCore.HttpOverrides;
 
@@ -41,6 +43,7 @@ builder.Services.Configure<ForwardedHeadersOptions>(options =>
 });
 
 builder.Services.AddLoggingModule(builder.Configuration);
+builder.Services.AddAuditModule(builder.Configuration);
 builder.Services.AddUsersModule(builder.Configuration, builder.Environment);
 builder.Services.AddAuthenticationModule(builder.Configuration, builder.Environment);
 
@@ -83,5 +86,6 @@ app.MapLoggingModule();
 app.MapAnalyticsModule();
 app.MapModManagerModule();
 app.MapServerLogsModule();
+app.MapAuditModule();
 
 app.Run();

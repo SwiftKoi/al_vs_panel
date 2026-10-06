@@ -13,6 +13,7 @@ COPY ["Modules/Logging/AlegacyWebPanel.Logging.csproj", "Modules/Logging/"]
 COPY ["Modules/Analytics/AlegacyWebPanel.Analytics.csproj", "Modules/Analytics/"]
 COPY ["Modules/ModManager/AlegacyWebPanel.ModManager.csproj", "Modules/ModManager/"]
 COPY ["Modules/ServerLogs/AlegacyWebPanel.ServerLogs.csproj", "Modules/ServerLogs/"]
+COPY ["Modules/Audit/AlegacyWebPanel.Audit.csproj", "Modules/Audit/"]
 RUN dotnet restore
 
 COPY . .

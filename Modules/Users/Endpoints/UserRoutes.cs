@@ -1,3 +1,4 @@
+using AlegacyWebPanel.Core.Auditing;
 using AlegacyWebPanel.Core.Endpoints;
 using Microsoft.AspNetCore.Builder;
 using Microsoft.AspNetCore.Http;
@@ -12,9 +13,9 @@ public static class UserRoutes
         var group = endpoints.MapGroup("/api/users").RequireAuthorization();
 
         group.MapGet("/", UserEndpoints.ListAsync);
-        group.MapPost("/", UserEndpoints.CreateAsync).RequireAntiforgery();
-        group.MapDelete("/{id}", UserEndpoints.DeleteAsync).RequireAntiforgery();
-        group.MapPut("/{id}/role", UserEndpoints.ChangeRoleAsync).RequireAntiforgery();
+        group.MapPost("/", UserEndpoints.CreateAsync).RequireAntiforgery().Audited(AuditCategories.Users, "create");
+        group.MapDelete("/{id}", UserEndpoints.DeleteAsync).RequireAntiforgery().Audited(AuditCategories.Users, "delete");
+        group.MapPut("/{id}/role", UserEndpoints.ChangeRoleAsync).RequireAntiforgery().Audited(AuditCategories.Users, "change-role");
 
         return endpoints;
     }

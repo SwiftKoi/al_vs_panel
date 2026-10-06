@@ -21,6 +21,17 @@ Every browser account has exactly one role, `Admin` or `Moderator`. Roles are Id
 - Admins cannot change their own role, and the last admin cannot be demoted or deleted.
 - The frontend hides admin pages, Quick actions and dashboard drill-down links from moderators. That is convenience only; the backend is the boundary.
 
+## Audit trail
+
+Privileged and state-changing routes are recorded in the audit trail (`Modules/Audit`): who (username, role, client IP), what (category, action, server, target, details), when, and whether it succeeded. Failed and refused attempts are recorded with the reason. Sign-in attempts stay in the [login log](#login-log).
+
+- **Every new mutating route must call `.Audited(...)`** (see [Module development](Module-Development.md)). Reads are not recorded.
+- **Secrets are not stored.** Request fields whose name contains `pass`, `secret`, `token`, `key`, `code`, `otp`, `cookie` or `content` are dropped before storage, values are cut at 200 characters, and console commands that mention a password, token, secret or API key keep only the command name. Unlike the application log, the audit trail does store console command text and file paths, because that is the point of it.
+- **Admin-only and append-only.** `GET /api/audit` and `/api/audit/facets` use the default admin policy. No route creates, edits or deletes an entry. Entries leave only through retention pruning (`AuditTrail:RetentionDays`).
+- **Separate store.** `audit.db` is its own SQLite file in `app_data`, so log clean-ups and authentication data cannot affect it.
+- **Fail open for the action.** If the store is unavailable the action still runs and the error goes to the application log. An outage therefore leaves a gap in the trail.
+- Automation API calls are recorded as `automation-api`. The client IP is taken from forwarded headers (see the note in the Authentication README), so it is only as trustworthy as that setting.
+
 ## Login log
 
 The Authentication module records every login attempt — successful and failed — into the `LoginEvents` table in the authentication database (`alegacy.db`). Each entry stores only the attempted username, the client IP address, the outcome, and a UTC timestamp. Passwords, 2FA codes, and session tokens are never stored or logged. Entries older than `Authentication:LoginLog:MaxRetainedDays` (default 90) are pruned on write, bounding audit-table growth.

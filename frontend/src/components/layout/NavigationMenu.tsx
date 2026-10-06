@@ -1,6 +1,6 @@
 import type { ComponentType } from "react";
 import { useLocation, useNavigate } from "react-router-dom";
-import { BarChart3, Wand2, Code2, FileSearch, Folder, LayoutDashboard, Package, ScrollText, Server, Settings } from "lucide-react";
+import { BarChart3, ClipboardList, Wand2, Code2, FileSearch, Folder, LayoutDashboard, Package, ScrollText, Server, Settings } from "lucide-react";
 import { useTranslation } from "react-i18next";
 import { cn } from "@/lib/cn";
 import { useSession } from "@/context/SessionContext";
@@ -20,6 +20,7 @@ const items: { path: string; label: string; icon: ComponentType<{ size?: number 
   { path: "/server-logs", label: "navigation.serverLogs", icon: FileSearch },
   { path: "/actions", label: "navigation.actions", icon: Wand2 },
   { path: "/logs", label: "navigation.logs", icon: ScrollText, adminOnly: true },
+  { path: "/audit", label: "navigation.audit", icon: ClipboardList, adminOnly: true },
   { path: "/settings", label: "navigation.settings", icon: Settings }
 ];
 

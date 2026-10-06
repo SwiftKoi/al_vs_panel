@@ -68,6 +68,10 @@ DTOs cross layer boundaries. Keep transport DTOs separate from persistence model
 
 Business code throws module domain exceptions. It must not throw HTTP-specific exceptions. Endpoint coordinators convert known domain exceptions into `HttpException` values. Core exception middleware converts `HttpException` values into problem responses.
 
+## Auditing
+
+Every route that changes state, or hands out data in bulk, must be recorded in the audit trail by adding `.Audited(AuditCategories.<Category>, "<action>")` to its mapping in the module's `*Routes.cs`. The filter and contract are in `Core/Auditing`, so a module does not reference the Audit module. Pick a category from `AuditCategories` (add one there if none fits), use a short verb for the action, and add its label to both locale files under `audit.actions`. Never put secrets in a request field name that does not look secret: the recorder drops fields by name (see [Security](Security.md#audit-trail)). Read-only routes are not audited.
+
 ## Registration and boundaries
 
 Each module should expose one registration method from `Infrastructure`, such as `AddAuthenticationModule` or `AddRemoteOperationsModule`, and one endpoint-mapping method from `Endpoints` (e.g. in `AuthenticationRoutes.cs`), such as `MapAuthenticationModule`. Endpoint handler implementations reside in `*Endpoints.cs` classes (e.g. `AuthenticationEndpoints.cs`), separating route binding from endpoint logic. `Program.cs` calls the registration and mapping methods and does not register module internals individually.

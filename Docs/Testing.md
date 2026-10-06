@@ -18,7 +18,7 @@ Feature tests do not retest ASP.NET routing, model binding, cookie internals, EF
 
 ## Core tests
 
-Shared-kernel tests live under `Core/Tests`. They test Core primitives and shared behavior, not module business rules.
+Shared-kernel tests live under `Core/Tests`. They test Core primitives and shared behavior, not module business rules. This includes the audit filter (`AuditEndpointFilterTests`: actor, role and IP capture, failure recording, a failing trail never breaking the action, no trail registered) and what it records (`AuditRequestDescriberTests`: server and target extraction, removal of secrets and file contents, console-command redaction, size limits).
 
 ## Naming
 
@@ -52,6 +52,8 @@ dotnet test Modules/ServerLogs/Tests/Unit/AlegacyWebPanel.ServerLogs.UnitTests.c
 dotnet test Modules/Users/Tests/Unit/AlegacyWebPanel.Users.UnitTests.csproj
 dotnet test Modules/Users/Tests/Feature/AlegacyWebPanel.Users.FeatureTests.csproj
 dotnet test Modules/Analytics/Tests/Feature/AlegacyWebPanel.Analytics.FeatureTests.csproj
+dotnet test Modules/Audit/Tests/Unit/AlegacyWebPanel.Audit.UnitTests.csproj
+dotnet test Modules/Audit/Tests/Feature/AlegacyWebPanel.Audit.FeatureTests.csproj
 ```
 
 Run the complete test suite in the isolated SDK test image:
@@ -67,6 +69,8 @@ Before submitting a change, run the relevant Unit and Feature suites, `dotnet bu
 RemoteOperations adapter-focused unit tests may inspect process start information and generated SSH command text, but they must not open a real process or network connection. ServerManagement unit tests replace RemoteOperations and cover operation mapping, status, metrics, and connections parsing, command validation, lifecycle conflicts, failure handling, and safe stream mapping. Feature tests invoke endpoint coordinators directly and verify request/result mapping and domain-to-HTTP exception translation.
 
 Logging unit tests cover the writer (level filtering, structured-state serialization with secret redaction and size bounds, drop counting), the query service (filter validation and DTO mapping), the SQLite repository (write, filtered query, pagination, level counts, sources, delete, prune, and storage-failure translation) and the background worker's persistence and shutdown flush. Logging feature tests invoke the endpoint coordinators with a fake service and verify filter binding, error-feed mapping, and domain-to-HTTP exception translation.
+
+Audit unit tests cover the SQLite repository (write, every filter, paging, facets, pruning, storage-failure translation), the trail service (timestamping, swallowing storage failures) and query validation. Audit feature tests verify filter binding, error translation and that every route is read-only and admin-only.
 
 Users unit tests cover role assignment on create, role listing, role changes (security-stamp rotation, self-change and last-admin refusal) and last-admin delete protection. ServerManagement and Analytics feature tests include a route-policy test that maps the module and asserts exactly which routes carry the moderator (`Staff`) policy and that all others use the admin default. Core tests cover the panel policies.
 

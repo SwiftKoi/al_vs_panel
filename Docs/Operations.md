@@ -65,6 +65,10 @@ The Logging module persists every captured `ILogger<T>` event to a dedicated SQL
 
 To inspect recorded events, open the authenticated **Logs** page (`/logs`), or query the authenticated API (`GET /api/logs`, `GET /api/logs/errors`, `GET /api/logs/summary`, `GET /api/logs/sources`, `DELETE /api/logs`). The `app_data` volume must be included in backups; it now holds both the authentication database and the log database.
 
+## Audit trail
+
+The Audit module records who changed what (server control, moderation actions, file edits, mod updates, user and account changes) in `/var/lib/alegacy/data/audit.db` inside the `app_data` volume. Admins read it on the **Audit trail** page (`/audit`) or through `GET /api/audit`. Entries older than `AuditTrail:RetentionDays` (365 by default) are pruned automatically, and nothing else deletes them. Include the `app_data` volume in backups. If entries stop appearing, look for `Could not record audit event` in the application log.
+
 ## Persistent state
 
 The Compose deployment persists the SQLite database and ASP.NET Core data-protection keys in separate named volumes:

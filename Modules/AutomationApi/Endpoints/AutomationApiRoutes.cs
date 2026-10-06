@@ -1,3 +1,4 @@
+using AlegacyWebPanel.Core.Auditing;
 using AlegacyWebPanel.Modules.AutomationApi.Configuration;
 using AlegacyWebPanel.Modules.AutomationApi.Infrastructure;
 using AlegacyWebPanel.Modules.ServerManagement.Contracts;
@@ -25,13 +26,16 @@ public static class AutomationApiRoutes
         group.MapGet("/servers/{serverId}/status", AutomationApiEndpoints.ServerStatusAsync);
         group.MapGet("/servers/{serverId}/files/{root}", AutomationApiEndpoints.ListFilesAsync);
         group.MapGet("/servers/{serverId}/files/{root}/download", AutomationApiEndpoints.DownloadFileAsync);
-        group.MapPost("/servers/{serverId}/files/{root}/upload", AutomationApiEndpoints.UploadFileAsync);
+        group.MapPost("/servers/{serverId}/files/{root}/upload", AutomationApiEndpoints.UploadFileAsync).Audited(AuditCategories.Files, "upload");
         group.MapPost("/servers/{serverId}/start", (string serverId, IServerManagementService service, CancellationToken token) =>
-                AutomationApiEndpoints.LifecycleAsync(serverId, ServerLifecycleAction.Start, service, token));
+                AutomationApiEndpoints.LifecycleAsync(serverId, ServerLifecycleAction.Start, service, token))
+            .Audited(AuditCategories.Server, "start");
         group.MapPost("/servers/{serverId}/stop", (string serverId, IServerManagementService service, CancellationToken token) =>
-                AutomationApiEndpoints.LifecycleAsync(serverId, ServerLifecycleAction.Stop, service, token));
+                AutomationApiEndpoints.LifecycleAsync(serverId, ServerLifecycleAction.Stop, service, token))
+            .Audited(AuditCategories.Server, "stop");
         group.MapPost("/servers/{serverId}/restart", (string serverId, IServerManagementService service, CancellationToken token) =>
-                AutomationApiEndpoints.LifecycleAsync(serverId, ServerLifecycleAction.Restart, service, token));
+                AutomationApiEndpoints.LifecycleAsync(serverId, ServerLifecycleAction.Restart, service, token))
+            .Audited(AuditCategories.Server, "restart");
 
         return endpoints;
     }

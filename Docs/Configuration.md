@@ -94,6 +94,10 @@ Server profiles are configured under `Servers:Instances`. Each profile exposes s
 
 `Instances:<serverId>:Roots:<rootId>` maps each root to a `file-manager.py` operation. The helper reports outcomes through exit codes (see its header) that the panel maps to 400/404/409/413 responses; only unexpected failures become 502.
 
+## Audit trail configuration
+
+Audit settings are under `AuditTrail` and are owned by the Audit module: `DatabasePath` (`/var/lib/alegacy/data/audit.db`), `RetentionDays` (365), `PruneIntervalMinutes` (360) and `MaximumPageSize` (500). All values must be positive or the application refuses to start. Environment overrides look like `AuditTrail__RetentionDays=730`.
+
 ## Logging configuration
 
 Logging settings are under `LogStore` and are owned by the Logging module. The persisted level is independent of the console level. Defaults live in `appsettings.json`; `appsettings.Development.json` overrides the persisted level to `Debug` and shortens retention.

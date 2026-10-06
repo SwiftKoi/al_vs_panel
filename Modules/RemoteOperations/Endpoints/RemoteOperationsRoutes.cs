@@ -1,3 +1,4 @@
+using AlegacyWebPanel.Core.Auditing;
 using AlegacyWebPanel.Core.Endpoints;
 using AlegacyWebPanel.Modules.RemoteOperations.Services;
 using Microsoft.AspNetCore.Builder;
@@ -14,7 +15,8 @@ public static class RemoteOperationsRoutes
             IRemoteOperationsService service,
             CancellationToken cancellationToken) => RemoteOperationsEndpoints.ExecuteAsync(operation, service, cancellationToken))
             .RequireAuthorization()
-            .RequireAntiforgery();
+            .RequireAntiforgery()
+            .Audited(AuditCategories.Remote, "execute");
 
         return endpoints;
     }

@@ -42,6 +42,7 @@ The Core project contains cross-module capabilities only:
 - redacted secret values;
 - domain and HTTP exception primitives;
 - shared exception handling;
+- the audit contract and endpoint filter (`Core/Auditing`);
 - health endpoint infrastructure;
 - Core tests.
 
@@ -104,6 +105,10 @@ ILogger<T> -> SqliteLogProvider -> SqliteLogWriter -> bounded channel
 The viewer follows the standard flow: `HTTP request -> Logging endpoint -> ILoggingService -> ILogRepository -> LogDbContext`.
 
 The log database is intentionally separate from the authentication database so log write contention or log storage failures cannot affect authentication. Structured state is serialized with size bounds, `SecretValue` values are redacted, and the buffer drops entries without blocking when full.
+
+### Audit
+
+Owns the append-only audit trail and its admin-only viewer. The contract lives in `Core/Auditing` because every module uses it: `IAuditTrail`, `AuditEvent`, `AuditCategories`, and the `.Audited(category, action)` endpoint filter. A module opts a mutating route in with that one call and does not reference the Audit module. The filter runs after authorization, builds the entry from the request (`AuditRequestDescriber`: actor and role from the principal, client IP, server from the `serverId` route value, target and details from route values, query and the bound `*Request` body with secret-looking fields removed), lets the endpoint run, and records the outcome, including exceptions and `4xx`/`5xx` results. `IAuditTrail` is implemented by the Audit module (`AuditTrailService`), which stores entries in a dedicated SQLite database (`/var/lib/alegacy/data/audit.db`) and swallows storage errors so auditing can never break the action. If no `IAuditTrail` is registered the filter does nothing. The viewer follows `HTTP request -> Audit endpoint -> IAuditQueryService -> IAuditRepository -> AuditDbContext`. See [`Modules/Audit/README.md`](../Modules/Audit/README.md).
 
 ### Analytics
 

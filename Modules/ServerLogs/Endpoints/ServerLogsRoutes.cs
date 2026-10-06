@@ -1,3 +1,4 @@
+using AlegacyWebPanel.Core.Auditing;
 using AlegacyWebPanel.Core.Authorization;
 using AlegacyWebPanel.Core.Endpoints;
 
@@ -16,7 +17,7 @@ public static class ServerLogsRoutes
         group.MapGet("/export", ServerLogsEndpoints.Export);
         group.MapGet("/entries/{entryId:long}/context", ServerLogsEndpoints.ContextAsync);
         group.MapGet("/signatures", ServerLogsEndpoints.SignaturesAsync);
-        group.MapPut("/signatures/{signatureId:long}/mute", ServerLogsEndpoints.SetMutedAsync).RequireAntiforgery();
+        group.MapPut("/signatures/{signatureId:long}/mute", ServerLogsEndpoints.SetMutedAsync).RequireAntiforgery().Audited(AuditCategories.Logs, "mute-signature");
         group.MapGet("/suggest", ServerLogsEndpoints.SuggestAsync);
         group.MapGet("/problems/summary", ServerLogsEndpoints.ProblemSummaryAsync);
         group.MapGet("/players", ServerLogsEndpoints.PlayersAsync);

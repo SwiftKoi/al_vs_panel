@@ -30,6 +30,7 @@
     <ProjectReference Include="Modules/Analytics/AlegacyWebPanel.Analytics.csproj" />
     <ProjectReference Include="Modules/ModManager/AlegacyWebPanel.ModManager.csproj" />
     <ProjectReference Include="Modules/ServerLogs/AlegacyWebPanel.ServerLogs.csproj" />
+    <ProjectReference Include="Modules/Audit/AlegacyWebPanel.Audit.csproj" />
   </ItemGroup>
 
   <ItemGroup>

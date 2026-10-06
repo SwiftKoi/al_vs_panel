@@ -1,3 +1,4 @@
+using AlegacyWebPanel.Core.Auditing;
 using AlegacyWebPanel.Core.Authorization;
 using AlegacyWebPanel.Core.Endpoints;
 using Microsoft.AspNetCore.Builder;
@@ -20,11 +21,11 @@ public static class AuthenticationRoutes
         group.MapGet("/login-logs", AuthenticationEndpoints.RecentLoginsAsync).RequireAuthorization();
 
         // Own-account routes: any panel role, plus antiforgery.
-        group.MapPost("/password", AuthenticationEndpoints.ChangePasswordAsync).RequireAuthorization(PanelPolicies.Staff).RequireAntiforgery();
+        group.MapPost("/password", AuthenticationEndpoints.ChangePasswordAsync).RequireAuthorization(PanelPolicies.Staff).RequireAntiforgery().Audited(AuditCategories.Account, "change-password");
         group.MapGet("/2fa/status", AuthenticationEndpoints.TwoFactorStatusAsync).RequireAuthorization(PanelPolicies.Staff);
         group.MapPost("/2fa/setup", AuthenticationEndpoints.GetTwoFactorSetupAsync).RequireAuthorization(PanelPolicies.Staff).RequireAntiforgery();
-        group.MapPost("/2fa/enable", AuthenticationEndpoints.EnableTwoFactorAsync).RequireAuthorization(PanelPolicies.Staff).RequireAntiforgery();
-        group.MapPost("/2fa/disable", AuthenticationEndpoints.DisableTwoFactorAsync).RequireAuthorization(PanelPolicies.Staff).RequireAntiforgery();
+        group.MapPost("/2fa/enable", AuthenticationEndpoints.EnableTwoFactorAsync).RequireAuthorization(PanelPolicies.Staff).RequireAntiforgery().Audited(AuditCategories.Account, "2fa-enable");
+        group.MapPost("/2fa/disable", AuthenticationEndpoints.DisableTwoFactorAsync).RequireAuthorization(PanelPolicies.Staff).RequireAntiforgery().Audited(AuditCategories.Account, "2fa-disable");
 
         return endpoints;
     }

@@ -1,3 +1,4 @@
+using AlegacyWebPanel.Core.Auditing;
 using AlegacyWebPanel.Core.Endpoints;
 using Microsoft.AspNetCore.Builder;
 using Microsoft.AspNetCore.Http;
@@ -15,7 +16,7 @@ public static class LoggingRoutes
         group.MapGet("/sources", LoggingEndpoints.SourcesAsync);
         group.MapGet("/summary", LoggingEndpoints.SummaryAsync);
         group.MapGet("/errors", LoggingEndpoints.ErrorsAsync);
-        group.MapDelete("/", LoggingEndpoints.DeleteAsync).RequireAntiforgery();
+        group.MapDelete("/", LoggingEndpoints.DeleteAsync).RequireAntiforgery().Audited(AuditCategories.Logs, "clear");
 
         return endpoints;
     }

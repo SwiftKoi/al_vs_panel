@@ -25,6 +25,7 @@ Each module documents its own features, API, configuration and layout:
 - [Analytics](../Modules/Analytics/README.md) — player activity, disconnects, server health, connection quality.
 - [ServerLogs](../Modules/ServerLogs/README.md) — search and analysis of the game server's logs.
 - [Logging](../Modules/Logging/README.md) — the panel's own persistent application log.
+- [Audit](../Modules/Audit/README.md) — append-only audit trail of who changed what, with an admin viewer.
 - [AutomationApi](../Modules/AutomationApi/README.md) — API-key access for external automation.
 
 Documentation must describe the repository as it should be maintained. Do not record conversational history or temporary implementation details here.

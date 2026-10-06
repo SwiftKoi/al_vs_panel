@@ -1,0 +1,5 @@
+{
+  "name": "Audit",
+  "description": "Append-only audit trail of who changed what in the panel: recording of privileged actions from every module, retention, and an admin-only searchable viewer.",
+  "version": "1.0.0"
+}
