@@ -28,6 +28,34 @@ public static class AutomationApiEndpoints
         CancellationToken cancellationToken) =>
         TranslateAsync(async () => Results.Ok(await service.GetPublicCatalogAsync(serverId, cancellationToken)));
 
+    public const string ServerPasswordHeader = "X-Server-Password";
+
+    public static Task<IResult> ClientModsArchiveAsync(
+        string serverId,
+        HttpContext context,
+        IClientModsService service,
+        CancellationToken cancellationToken) =>
+        TranslateAsync(async () =>
+        {
+            var password = Uri.UnescapeDataString(context.Request.Headers[ServerPasswordHeader].ToString());
+            var client = context.Connection.RemoteIpAddress?.ToString() ?? "unknown";
+            var access = await service.CheckPasswordAsync(serverId, password, client, cancellationToken);
+            if (access != ClientModsAccess.Allowed)
+            {
+                return Results.StatusCode(access == ClientModsAccess.Blocked
+                    ? StatusCodes.Status429TooManyRequests
+                    : StatusCodes.Status401Unauthorized);
+            }
+
+            var archive = await service.GetArchiveAsync(serverId, cancellationToken);
+            return Results.File(
+                archive.Path,
+                "application/zip",
+                lastModified: archive.ModifiedUtc,
+                entityTag: new EntityTagHeaderValue($"\"{archive.Fingerprint}\""),
+                enableRangeProcessing: true);
+        });
+
     public static Task<IResult> ServerStatusAsync(
         string serverId,
         IServerManagementService service,
@@ -199,6 +227,10 @@ public static class AutomationApiEndpoints
         catch (RemoteOperationFailedException exception)
         {
             throw new HttpException(StatusCodes.Status502BadGateway, "Remote operation failed", exception.Message);
+        }
+        catch (ClientModsNotEnabledException exception)
+        {
+            throw new HttpException(StatusCodes.Status404NotFound, "Client mods not offered", exception.Message);
         }
         catch (ModServerNotFoundException exception)
         {

@@ -15,6 +15,9 @@ public sealed class ModManagerOptions
     public long MaximumDownloadBytes { get; set; } = 300L * 1024 * 1024;
     public int MaximumConcurrentRequests { get; set; } = 4;
 
+    /// <summary>Where the archives of client mods are kept. Must be writable by the panel.</summary>
+    public string ClientModsDirectory { get; set; } = "/var/lib/alegacy/data/client-mods";
+
     // Per-server mod sources, keyed by ServerManagement server ID.
     public Dictionary<string, ModManagerServerOptions> Servers { get; set; } = [];
 }
@@ -26,4 +29,7 @@ public sealed class ModManagerServerOptions
 
     // Overrides the game version read from the server log.
     public string? GameVersion { get; set; }
+
+    /// <summary>Lets players with the game server's password download its client mods. Off by default.</summary>
+    public bool ClientMods { get; set; }
 }

@@ -9,7 +9,8 @@ public sealed record ModInfo(
     string? Version,
     string? Side,
     string? Description,
-    IReadOnlyList<string> Authors);
+    IReadOnlyList<string> Authors,
+    bool? RequiredOnClient = null);
 
 /// <summary>
 /// Reads modinfo.json the way the game does: Newtonsoft with case-insensitive keys, so
@@ -40,7 +41,10 @@ public static class ModInfoParser
                 Read(root, "version")?.Trim(),
                 Read(root, "side")?.Trim().ToLowerInvariant(),
                 Read(root, "description"),
-                ReadAuthors(root));
+                ReadAuthors(root),
+                root.GetValue("requiredOnClient", StringComparison.OrdinalIgnoreCase) is { Type: JTokenType.Boolean } required
+                    ? required.Value<bool>()
+                    : null);
         }
         catch (JsonException)
         {

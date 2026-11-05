@@ -20,6 +20,14 @@ Routes are under `/api/servers/{serverId}/mods` and are **admin-only**.
 | **Pinning** | Pin a mod to keep it out of **Update all**. Pins are saved in `mod-manager.json`. |
 | **Restart hint** | Shows "restart required" when a mod file is newer than the server's start, and offers a restart button through ServerManagement. Nothing restarts automatically. |
 
+## Client mods for the launcher
+
+With `ModManager:Servers:{id}:ClientMods` set to `true`, `GET /api/v1/servers/{id}/client-mods/archive` gives players the mods they need to join that server. It is off by default, and only the test server turns it on.
+
+- **What goes in:** installed `.zip` mods with a readable `modinfo.json`, except `side: server` and `requiredOnClient: false`.
+- **Format:** one archive without compression, with HTTP range support, so the launcher downloads only the changed mods. It is rebuilt when a mod file changes, under `ClientModsDirectory`.
+- **Access:** the `X-Server-Password` header carries the game server's password, percent-encoded. `mod-manager.py` compares it on the target, so the panel never reads the real one. Five wrong attempts from one address block it for ten minutes.
+
 ## Flow
 
 ```text

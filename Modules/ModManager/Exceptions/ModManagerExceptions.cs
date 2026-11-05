@@ -21,4 +21,7 @@ public sealed class ModUpdateConflictException()
 public sealed class ModBackupNotFoundException()
     : DomainException("There is no update to roll back.");
 
+public sealed class ClientModsNotEnabledException(string serverId)
+    : DomainException($"Client mods are not offered for server '{serverId}'.");
+
 public sealed class ModTargetException(string message) : DomainException(message);

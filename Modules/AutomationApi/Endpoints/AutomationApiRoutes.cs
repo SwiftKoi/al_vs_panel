@@ -45,6 +45,10 @@ public static class AutomationApiRoutes
                 .MapGet("/servers/{serverId}/mods", AutomationApiEndpoints.PublicModsAsync);
         }
 
+        // Anonymous at the transport level: players prove themselves with the game server's password.
+        endpoints.MapGet("/api/v1/servers/{serverId}/client-mods/archive", AutomationApiEndpoints.ClientModsArchiveAsync)
+            .AllowAnonymous();
+
         return endpoints;
     }
 }

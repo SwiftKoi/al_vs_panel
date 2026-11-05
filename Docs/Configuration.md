@@ -80,6 +80,8 @@ Server log analysis is configured under `ServerLogs`: per-server `Servers:{id}:O
 
 Mod management is configured under `ModManager`: per-server `Servers:{id}:Operation` names the RemoteOperations command that runs `Server/*/mod-manager.py <Data dir>` (and an optional `GameVersion` override); ModDB URL, trusted download hosts, cache lifetime, timeouts and size limits have defaults. Servers without an entry have no Mods page data. See [`Modules/ModManager/README.md`](../Modules/ModManager/README.md).
 
+`ModManager:Servers:{id}:ClientMods` offers that server's client mods to players with its game password; `ModManager:ClientModsDirectory` is where the archives are kept. See the ModManager README.
+
 Server profiles are configured under `Servers:Instances`. Each profile exposes safe metadata (`Id`, `Name`, `Host`, `Port`, and `Location`) and references allowlisted RemoteOperations names through `StartOperation`, `StopOperation`, `RestartOperation`, `StatusOperation`, `ConsoleOperation`, `LogsOperation`, and `MetricsOperation`, plus an optional `ConnectionsOperation` for per-client connection diagnostics (the endpoint returns 503 when it is not configured). Browser input never supplies operation names, executable paths, SSH targets, Compose projects, or service names.
 
 `Servers:MaximumCommandLength` limits game-console commands and defaults to 512 characters. Server IDs must be non-empty and unique. An empty instance list is valid and makes the list endpoint return no configured servers.

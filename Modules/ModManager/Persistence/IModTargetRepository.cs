@@ -24,4 +24,8 @@ public interface IModTargetRepository
     Task DiscardAsync(string operation, string batchId, CancellationToken cancellationToken);
     Task<ModJournal?> GetBackupAsync(string operation, CancellationToken cancellationToken);
     Task<ModJournal> RollbackAsync(string operation, CancellationToken cancellationToken);
+    Task ReadFileAsync(string operation, string fileName, Stream destination, CancellationToken cancellationToken);
+
+    /// <summary>The target compares the password itself, so the panel never learns the real one.</summary>
+    Task<bool> CheckServerPasswordAsync(string operation, string password, CancellationToken cancellationToken);
 }

@@ -16,12 +16,15 @@ Commands:
   rollback                          undo the last applied batch
   backup                            JSON journal of the last applied batch (or null)
   discard <batch>                   remove .mod-staging/<batch>
+  read <filename>                   write Mods/<filename> to stdout
+  check-password                    exit 0 when stdin equals the server password, else 2
 
 Exit codes are part of the contract with RemoteModRepository:
   1 usage, 2 not permitted, 3 not found, 5 I/O error, 17 already exists, 18 limit exceeded.
 JSON goes to stdout; errors go to stderr as "Error: <message>".
 """
 import base64
+import hmac
 import json
 import os
 import re
@@ -276,6 +279,29 @@ def cmd_discard(root, batch):
     emit({"discarded": batch})
 
 
+def cmd_read(root, name):
+    name = safe_name(name)
+    path = os.path.join(root, "Mods", name)
+    if not is_plain_file(path):
+        fail(EXIT_NOT_FOUND, "Mod file does not exist.")
+    try:
+        with open(path, "rb") as handle:
+            shutil.copyfileobj(handle, sys.stdout.buffer, 1024 * 1024)
+    except OSError as exception:
+        fail(EXIT_IO, str(exception))
+
+
+def cmd_check_password(root):
+    try:
+        with open(os.path.join(root, "serverconfig.json"), encoding="utf-8-sig") as handle:
+            expected = json.load(handle).get("Password")
+    except (OSError, ValueError) as exception:
+        fail(EXIT_IO, str(exception))
+    given = sys.stdin.buffer.read(4096)
+    if not expected or not hmac.compare_digest(given, expected.encode("utf-8")):
+        fail(EXIT_NOT_PERMITTED, "Wrong password.")
+
+
 def main(argv):
     if len(argv) < 3:
         fail(EXIT_USAGE, "Usage: mod-manager.py <data_root> <command> [args...]")
@@ -297,6 +323,10 @@ def main(argv):
         cmd_backup(root)
     elif command == "discard" and len(args) == 1:
         cmd_discard(root, args[0])
+    elif command == "read" and len(args) == 1:
+        cmd_read(root, args[0])
+    elif command == "check-password" and not args:
+        cmd_check_password(root)
     else:
         fail(EXIT_USAGE, f"Unknown command or wrong arguments: {command}")
 

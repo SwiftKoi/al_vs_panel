@@ -32,6 +32,8 @@ public static class ModManagerModule
         services.AddScoped<IModTargetRepository, RemoteModTargetRepository>();
         services.AddScoped<ModUpdateRunner>();
         services.AddScoped<IModManagerService, ModManagerService>();
+        services.AddSingleton<ClientModsGate>();
+        services.AddScoped<IClientModsService, ClientModsService>();
 
         return services;
     }

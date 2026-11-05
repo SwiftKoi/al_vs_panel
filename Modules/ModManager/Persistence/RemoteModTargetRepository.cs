@@ -8,6 +8,7 @@ namespace AlegacyWebPanel.Modules.ModManager.Persistence;
 /// <summary>Runs Server/*/mod-manager.py through RemoteOperations; see the helper for the exit-code contract.</summary>
 public sealed class RemoteModTargetRepository(IRemoteOperationsService remoteOperations) : IModTargetRepository
 {
+    private const int ExitNotPermitted = 2;
     private const int ExitNotFound = 3;
 
     private static readonly JsonSerializerOptions JsonOptions = new(JsonSerializerDefaults.Web);
@@ -69,6 +70,36 @@ public sealed class RemoteModTargetRepository(IRemoteOperationsService remoteOpe
         catch (RemoteOperationFailedException exception) when (exception.ExitStatus == ExitNotFound)
         {
             throw new ModBackupNotFoundException();
+        }
+    }
+
+    public async Task ReadFileAsync(string operation, string fileName, Stream destination, CancellationToken cancellationToken)
+    {
+        try
+        {
+            await remoteOperations.ExecuteBinaryAsync(operation, ["read", fileName], Stream.Null, destination, cancellationToken);
+        }
+        catch (RemoteOperationFailedException exception)
+        {
+            throw new ModTargetException(HelperMessage(exception));
+        }
+    }
+
+    public async Task<bool> CheckServerPasswordAsync(string operation, string password, CancellationToken cancellationToken)
+    {
+        using var input = new MemoryStream(System.Text.Encoding.UTF8.GetBytes(password));
+        try
+        {
+            await remoteOperations.ExecuteBinaryAsync(operation, ["check-password"], input, Stream.Null, cancellationToken);
+            return true;
+        }
+        catch (RemoteOperationFailedException exception) when (exception.ExitStatus == ExitNotPermitted)
+        {
+            return false;
+        }
+        catch (RemoteOperationFailedException exception)
+        {
+            throw new ModTargetException(HelperMessage(exception));
         }
     }
 

@@ -280,6 +280,68 @@ public sealed class AutomationApiEndpointTests
         TargetFailed
     }
 
+    [Theory]
+    [InlineData(ClientModsAccess.WrongPassword, StatusCodes.Status401Unauthorized)]
+    [InlineData(ClientModsAccess.Blocked, StatusCodes.Status429TooManyRequests)]
+    public async Task ClientMods_without_access_gets_no_archive(ClientModsAccess access, int expectedStatus)
+    {
+        var service = new FakeClientModsService { Access = access };
+
+        var result = await AutomationApiEndpoints.ClientModsArchiveAsync("test", new DefaultHttpContext(), service, CancellationToken.None);
+
+        Assert.Equal(expectedStatus, Assert.IsAssignableFrom<IStatusCodeHttpResult>(result).StatusCode);
+        Assert.False(service.ArchiveRequested);
+    }
+
+    [Fact]
+    public async Task ClientMods_decodes_the_password_and_serves_ranges()
+    {
+        var service = new FakeClientModsService { Access = ClientModsAccess.Allowed };
+        var context = new DefaultHttpContext();
+        context.Request.Headers[AutomationApiEndpoints.ServerPasswordHeader] = "a%20b%3A%D1%91";
+
+        var result = await AutomationApiEndpoints.ClientModsArchiveAsync("test", context, service, CancellationToken.None);
+
+        Assert.Equal("a b:\u0451", service.Password);
+        Assert.True(Assert.IsType<PhysicalFileHttpResult>(result).EnableRangeProcessing);
+    }
+
+    [Fact]
+    public async Task ClientMods_of_a_server_without_the_setting_is_not_found()
+    {
+        var service = new FakeClientModsService { NotEnabled = true };
+
+        var exception = await Assert.ThrowsAsync<HttpException>(() =>
+            AutomationApiEndpoints.ClientModsArchiveAsync("test", new DefaultHttpContext(), service, CancellationToken.None));
+
+        Assert.Equal(StatusCodes.Status404NotFound, exception.StatusCode);
+    }
+
+    private sealed class FakeClientModsService : IClientModsService
+    {
+        public ClientModsAccess Access { get; init; }
+        public bool NotEnabled { get; init; }
+        public bool ArchiveRequested { get; private set; }
+        public string? Password { get; private set; }
+
+        public Task<ClientModsAccess> CheckPasswordAsync(string serverId, string password, string client, CancellationToken cancellationToken)
+        {
+            if (NotEnabled)
+            {
+                throw new ClientModsNotEnabledException(serverId);
+            }
+
+            Password = password;
+            return Task.FromResult(Access);
+        }
+
+        public Task<ClientModArchive> GetArchiveAsync(string serverId, CancellationToken cancellationToken)
+        {
+            ArchiveRequested = true;
+            return Task.FromResult(new ClientModArchive("/tmp/mods.zip", "abc", DateTimeOffset.UnixEpoch));
+        }
+    }
+
     private sealed class FakeModService : IModManagerService
     {
         public ModFailure Failure { get; init; }
